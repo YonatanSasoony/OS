@@ -13,6 +13,9 @@
 
 #define MAXARGS 10
 
+#define MAX_PATH_LEN 512
+#define PATH "/path"
+
 struct cmd {
   int type;
 };
@@ -76,6 +79,30 @@ runcmd(struct cmd *cmd)
     if(ecmd->argv[0] == 0)
       exit(1);
     exec(ecmd->argv[0], ecmd->argv);
+
+    //Q1
+    int fd;
+    if((fd = open(PATH, O_RDONLY)) >= 0){
+      char buf[MAX_PATH_LEN];
+      int buf_cnt = 0;
+      int read_cnt;
+
+      while(1){
+        read_cnt = read(fd, buf+buf_cnt, 1);
+        if (read_cnt == 0){
+          break;
+        }
+        else if( (char)(*(buf+buf_cnt)) == ':' ){
+          strcpy(buf+buf_cnt, ecmd->argv[0]);
+          exec(buf, ecmd->argv);
+          buf_cnt = 0;
+        }
+        else{
+          buf_cnt++;
+        }
+      }
+    }
+
     fprintf(2, "exec %s failed\n", ecmd->argv[0]);
     break;
 
