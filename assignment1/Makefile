@@ -133,6 +133,7 @@ UPROGS=\
 	$U/_wc\
 	$U/_zombie\
 	$U/_trace\
+	$U/_test_trace\
 
 fs.img: mkfs/mkfs README path $(UPROGS)
 	mkfs/mkfs fs.img README path $(UPROGS)
