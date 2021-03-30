@@ -654,3 +654,43 @@ procdump(void)
     printf("\n");
   }
 }
+
+int
+trace(int mask, int pid){
+  struct proc *p;
+
+  for(p = proc; p < &proc[NPROC]; p++){
+    acquire(&p->lock);
+    if(p->pid == pid){
+      p->trace_mask = mask;
+      release(&p->lock);
+      return 0;
+    }
+    release(&p->lock);
+  }
+  return -1;
+}
+
+// void trace_print(int SYS_call_num){
+//   int syscall_on = p->proc_mask & (1 << SYS_call_num);
+//   if(syscall_on){
+//     Switch (p->name){
+//       case "fork":
+
+//         break;
+      
+//       case "kill":
+
+//         break;
+
+//       case "SBRK":
+
+//         break;
+
+//       default:
+        
+
+//     }
+//   }  
+// }
+
