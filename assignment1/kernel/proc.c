@@ -313,6 +313,7 @@ fork(void)
 
   acquire(&np->lock);
   np->state = RUNNABLE;
+  np->trace_mask = p->trace_mask;
   release(&np->lock);
 
   return pid;
@@ -632,7 +633,7 @@ either_copyin(void *dst, int user_src, uint64 src, uint64 len)
 void
 procdump(void)
 {
-  static char *states[] = {
+  static char *states[] = { 
   [UNUSED]    "unused",
   [SLEEPING]  "sleep ",
   [RUNNABLE]  "runble",
@@ -670,27 +671,4 @@ trace(int mask, int pid){
   }
   return -1;
 }
-
-// void trace_print(int SYS_call_num){
-//   int syscall_on = p->proc_mask & (1 << SYS_call_num);
-//   if(syscall_on){
-//     Switch (p->name){
-//       case "fork":
-
-//         break;
-      
-//       case "kill":
-
-//         break;
-
-//       case "SBRK":
-
-//         break;
-
-//       default:
-        
-
-//     }
-//   }  
-// }
 

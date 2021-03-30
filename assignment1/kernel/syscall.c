@@ -131,6 +131,104 @@ static uint64 (*syscalls[])(void) = {
 [SYS_trace]   sys_trace,
 };
 
+char*
+get_syscall_name(int num){
+  switch (num)
+  {
+  case SYS_fork:
+    return "fork";
+    break;
+  
+  case SYS_exit:
+    return "exit";
+    break;
+  
+  case SYS_wait:
+    return "wait";
+    break;
+  
+  case SYS_pipe:
+    return "pipe";
+    break;
+  
+  case SYS_read:
+    return "read";
+    break;
+  
+  case SYS_kill:
+    return "kill";
+    break;
+  
+  case SYS_exec:
+    return "exec";
+    break;
+  
+  case SYS_fstat:
+    return "fstat";
+    break;
+  
+  case SYS_chdir:
+    return "chdir";
+    break;
+  
+  case SYS_dup:
+    return "dup";
+    break;
+  
+  case SYS_getpid:
+    return "getpid";
+    break;
+  
+  case SYS_sbrk:
+    return "sbrk";
+    break;
+  
+  case SYS_sleep:
+    return "sleep";
+    break;
+  
+  case SYS_uptime:
+    return "uptime";
+    break;
+  
+  case SYS_open:
+    return "open";
+    break;
+  
+  case SYS_write:
+    return "write";
+    break;
+  
+  case SYS_mknod:
+    return "mknod";
+    break;
+  
+  case SYS_unlink:
+    return "unlink";
+    break;
+  
+  case SYS_link:
+    return "link";
+    break;
+  
+  case SYS_mkdir:
+    return "mkdir";
+    break;
+  
+  case SYS_close:
+    return "close";
+    break;
+  
+  case SYS_trace:
+    return "trace";
+    break;
+  
+  default:
+    return "unknown syscall name";
+    break;
+  }
+}
+
 void
 syscall(void)
 {
@@ -139,7 +237,37 @@ syscall(void)
 
   num = p->trapframe->a7;
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
+    int arg;
+    int arg_int = argint(0, &arg);
     p->trapframe->a0 = syscalls[num]();
+    //Q2
+    int syscall_on = p->trace_mask & (1 << num);
+
+    if(syscall_on){
+      char *syscall_name = get_syscall_name(num);
+      switch (num) {
+      case SYS_fork:
+        printf("%d: syscall %s NULL -> %d\n",p->pid, syscall_name, p->trapframe->a0);
+        break;
+      
+      case SYS_kill:
+        if(arg_int < 0)
+          break;
+        printf("%d: syscall %s %d -> %d\n",p->pid, syscall_name, arg, p->trapframe->a0);
+        break;
+      
+      case SYS_sbrk:
+        if(arg_int < 0)
+          break;
+        printf("%d: syscall %s %d -> %d\n",p->pid, syscall_name, arg, p->trapframe->a0);
+        break;
+
+      default:
+        printf("%d: syscall %s -> %d\n",p->pid, syscall_name, p->trapframe->a0);
+        break;
+      }
+    }
+
   } else {
     printf("%d %s: unknown sys call %d\n",
             p->pid, p->name, num);
