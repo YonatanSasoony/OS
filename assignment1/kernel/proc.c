@@ -120,6 +120,8 @@ found:
   p->pid = allocpid();
   p->state = USED;
 
+  // ctime here? TODO
+
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
     freeproc(p);
@@ -140,6 +142,11 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
+
+  // update ctime upon creation
+  acquire(&tickslock);
+  p->performance->ctime = ticks;
+  release(&tickslock);
 
   return p;
 }
@@ -164,6 +171,8 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->state = UNUSED;
+  p->trace_mask = 0;
+  // free perf? TODO 
 }
 
 // Create a user page table for a given process,
@@ -313,6 +322,7 @@ fork(void)
 
   acquire(&np->lock);
   np->state = RUNNABLE;
+
   np->trace_mask = p->trace_mask;
   release(&np->lock);
 
@@ -371,6 +381,11 @@ exit(int status)
 
   p->xstate = status;
   p->state = ZOMBIE;
+
+  //TODO ttime here?
+  acquire(&tickslock);
+  p->performance->ttime = ticks;
+  release(&tickslock);
 
   release(&wait_lock);
 
@@ -545,7 +560,15 @@ sleep(void *chan, struct spinlock *lk)
   p->chan = chan;
   p->state = SLEEPING;
 
+  acquire(&tickslock);
+  uint start_sleep_tick = ticks;
+  release(&tickslock);
+
   sched();
+
+  acquire(&tickslock);
+  p->performance->stime += ticks - start_sleep_tick;
+  release(&tickslock);
 
   // Tidy up.
   p->chan = 0;
@@ -585,6 +608,7 @@ kill(int pid)
     acquire(&p->lock);
     if(p->pid == pid){
       p->killed = 1;
+      // ttime? TODO
       if(p->state == SLEEPING){
         // Wake process from sleep().
         p->state = RUNNABLE;
@@ -671,4 +695,61 @@ trace(int mask, int pid){
   }
   return -1;
 }
+
+int
+wait_stat(int *status, struct perf *performance){
+struct proc *np;
+  int havekids, pid;
+  struct proc *p = myproc();
+
+  acquire(&wait_lock);
+
+  for(;;){
+    // Scan through table looking for exited children.
+    havekids = 0;
+    for(np = proc; np < &proc[NPROC]; np++){
+      if(np->parent == p){
+        // make sure the child isn't still in exit() or swtch().
+        acquire(&np->lock);
+
+        havekids = 1;
+        if(np->state == ZOMBIE){
+          // Found one.
+          pid = np->pid;
+          if (status != 0 && performance != 0 && 
+          (copyout(p->pagetable, (uint64)status, (char *)&np->xstate, sizeof(np->xstate)) < 0) &&
+          (copyout(p->pagetable, (uint64)performance, (char *)&np->performance, sizeof(np->performance)) < 0)) {
+            release(&np->lock);
+            release(&wait_lock);
+            return -1;
+          }
+          //save perf ptr? TODO
+          freeproc(np);
+          release(&np->lock);
+          release(&wait_lock);
+          return pid;
+        }
+        release(&np->lock);
+      }
+    }
+
+    // No point waiting if we don't have any children.
+    if(!havekids || p->killed){
+      release(&wait_lock);
+      return -1;
+    }
+    
+    // Wait for a child to exit.
+    sleep(p, &wait_lock);  //DOC: wait-sleep
+  }
+}
+
+// the update happens in clockint
+// in creation (fork) update ctime
+// in trap.c clockintr - update retime, rutime
+// in sleep sys call - update stime
+// ttime?
+//avg_bursttime - 4.3
+
+
 

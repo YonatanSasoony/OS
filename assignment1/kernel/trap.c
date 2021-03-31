@@ -160,10 +160,26 @@ kerneltrap()
 }
 
 void
+update_perf() {
+  struct proc *p;
+    for(p = &proc[0]; p < &proc[NPROC]; p++){
+      acquire(&p->lock);
+      if(p->state == RUNNABLE){
+        p->performance->retime++;
+      }
+      if(p->state == RUNNING){
+        p->performance->rutime++;
+      }
+      release(&p->lock);
+    }
+}
+
+void
 clockintr()
 {
   acquire(&tickslock);
   ticks++;
+  update_perf(); 
   wakeup(&ticks);
   release(&tickslock);
 }

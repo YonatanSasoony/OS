@@ -110,3 +110,18 @@ sys_trace(void)
 
   return trace(mask, pid);
 }
+
+uint64
+sys_wait_stat(void)
+{
+  int status;
+  struct perf performance;
+
+  if(argint(0, &status) < 0)
+    return -1;
+
+  if(argaddr(1, (uint64 *)&performance) < 0) // TODO SEG!
+    return -1;
+
+  return wait_stat(&status, &performance);
+}

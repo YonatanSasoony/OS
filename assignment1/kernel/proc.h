@@ -80,6 +80,16 @@ struct trapframe {
   /* 280 */ uint64 t6;
 };
 
+  // scheduling measures.
+  struct perf {
+    int ctime; // process creation time.
+    int ttime; // process termination time.
+    int stime; // the total time the process spent in the SLEEPING state.
+    int retime; // the total time the process spent in the RUNNABLE state.
+    int rutime; // the total time the process spent in the RUNNING state.
+    int average_bursttime; // approximate estimated burst time. average of bursstimes in 100ths (so average*100).
+  };
+
 enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 // Per-process state
@@ -92,7 +102,8 @@ struct proc {
   int killed;                  // If non-zero, have been killed
   int xstate;                  // Exit status to be returned to parent's wait
   int pid;                     // Process ID
-  int trace_mask;              // represent which sys calls we have to trace                
+  int trace_mask;              // represent which sys calls we have to trace  
+  struct perf *performance;    // scheduling measures.             
 
   // proc_tree_lock must be held when using this:
   struct proc *parent;         // Parent process
