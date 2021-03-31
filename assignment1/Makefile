@@ -115,7 +115,12 @@ mkfs/mkfs: mkfs/mkfs.c $K/fs.h $K/param.h
 # http://www.gnu.org/software/make/manual/html_node/Chained-Rules.html
 .PRECIOUS: %.o
 
+# ADDED Q1 - initialize default path
+_path:
+	echo "/:/bin/:" > _path
+
 UPROGS=\
+	_path\ # ADDED Q1
 	$U/_cat\
 	$U/_echo\
 	$U/_forktest\
@@ -132,12 +137,12 @@ UPROGS=\
 	$U/_grind\
 	$U/_wc\
 	$U/_zombie\
-	$U/_trace\
-	$U/_test_trace\
-	$U/_test_time\
+	$U/_trace\ # ADDED Q2
+	$U/_test_trace\ # TODO - REMOVE
+	$U/_test_time\ # TODO - REMOVE
 
-fs.img: mkfs/mkfs README path $(UPROGS)
-	mkfs/mkfs fs.img README path $(UPROGS)
+fs.img: mkfs/mkfs README $(UPROGS)
+	mkfs/mkfs fs.img README $(UPROGS)
 
 -include kernel/*.d user/*.d
 

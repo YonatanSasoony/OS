@@ -120,7 +120,11 @@ found:
   p->pid = allocpid();
   p->state = USED;
 
-  // ctime here? TODO
+  // TODO ADD ADDED , add extension
+  // ADDED Q3 - update creation time
+  acquire(&tickslock);
+  p->performance.ctime = ticks;
+  release(&tickslock);
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -142,11 +146,6 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
-
-  // update ctime upon creation
-  acquire(&tickslock);
-  p->performance->ctime = ticks;
-  release(&tickslock);
 
   return p;
 }
@@ -171,8 +170,7 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->state = UNUSED;
-  p->trace_mask = 0;
-  // free perf? TODO 
+  p->trace_mask = 0; // ADDED Q2
 }
 
 // Create a user page table for a given process,
@@ -322,8 +320,7 @@ fork(void)
 
   acquire(&np->lock);
   np->state = RUNNABLE;
-
-  np->trace_mask = p->trace_mask;
+  np->trace_mask = p->trace_mask; // ADDED Q2
   release(&np->lock);
 
   return pid;
@@ -382,9 +379,9 @@ exit(int status)
   p->xstate = status;
   p->state = ZOMBIE;
 
-  //TODO ttime here?
+  // ADDED Q3 - update termination time
   acquire(&tickslock);
-  p->performance->ttime = ticks;
+  p->performance.ttime = ticks;
   release(&tickslock);
 
   release(&wait_lock);
@@ -560,15 +557,7 @@ sleep(void *chan, struct spinlock *lk)
   p->chan = chan;
   p->state = SLEEPING;
 
-  acquire(&tickslock);
-  uint start_sleep_tick = ticks;
-  release(&tickslock);
-
   sched();
-
-  acquire(&tickslock);
-  p->performance->stime += ticks - start_sleep_tick;
-  release(&tickslock);
 
   // Tidy up.
   p->chan = 0;
@@ -608,7 +597,6 @@ kill(int pid)
     acquire(&p->lock);
     if(p->pid == pid){
       p->killed = 1;
-      // ttime? TODO
       if(p->state == SLEEPING){
         // Wake process from sleep().
         p->state = RUNNABLE;
@@ -680,6 +668,7 @@ procdump(void)
   }
 }
 
+// ADDED Q2
 int
 trace(int mask, int pid){
   struct proc *p;
@@ -696,8 +685,28 @@ trace(int mask, int pid){
   return -1;
 }
 
+// ADDED Q3
+void
+update_perf() {
+  struct proc *p;
+    for(p = &proc[0]; p < &proc[NPROC]; p++){
+      acquire(&p->lock);
+      if(p->state == RUNNABLE){
+        p->performance.retime++;
+      }
+      if(p->state == RUNNING){
+        p->performance.rutime++;
+      }
+      if(p->state == SLEEPING){
+        p->performance.stime++;
+      }
+      release(&p->lock);
+    }
+}
+
+// ADDED Q3
 int
-wait_stat(int *status, struct perf *performance){
+wait_stat(uint64 status, uint64 performance){
 struct proc *np;
   int havekids, pid;
   struct proc *p = myproc();
@@ -717,13 +726,12 @@ struct proc *np;
           // Found one.
           pid = np->pid;
           if (status != 0 && performance != 0 && 
-          (copyout(p->pagetable, (uint64)status, (char *)&np->xstate, sizeof(np->xstate)) < 0) &&
-          (copyout(p->pagetable, (uint64)performance, (char *)&np->performance, sizeof(np->performance)) < 0)) {
+          ((copyout(p->pagetable, status, (char *)&np->xstate, sizeof(struct perf)) < 0) ||
+          (copyout(p->pagetable, performance, (char *)&np->performance, sizeof(struct perf)) < 0))) {
             release(&np->lock);
             release(&wait_lock);
             return -1;
           }
-          //save perf ptr? TODO
           freeproc(np);
           release(&np->lock);
           release(&wait_lock);
@@ -743,13 +751,6 @@ struct proc *np;
     sleep(p, &wait_lock);  //DOC: wait-sleep
   }
 }
-
-// the update happens in clockint
-// in creation (fork) update ctime
-// in trap.c clockintr - update retime, rutime
-// in sleep sys call - update stime
-// ttime?
-//avg_bursttime - 4.3
 
 
 

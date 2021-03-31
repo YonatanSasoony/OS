@@ -13,6 +13,7 @@
 
 #define MAXARGS 10
 
+// ADDED Q1 - add defines
 #define MAX_PATH_LEN 512
 #define PATH "/path"
 
@@ -80,8 +81,8 @@ runcmd(struct cmd *cmd)
       exit(1);
     exec(ecmd->argv[0], ecmd->argv);
 
-    //Q1
-    int fd;
+    // ADDED Q1 - open path file and try to exec appended paths
+    int fd; 
     if((fd = open(PATH, O_RDONLY)) >= 0){
       char buf[MAX_PATH_LEN];
       int buf_cnt = 0;

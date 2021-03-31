@@ -104,8 +104,8 @@ extern uint64 sys_unlink(void);
 extern uint64 sys_wait(void);
 extern uint64 sys_write(void);
 extern uint64 sys_uptime(void);
-extern uint64 sys_trace(void);
-extern uint64 sys_wait_stat(void);
+extern uint64 sys_trace(void); // ADDED Q2
+extern uint64 sys_wait_stat(void); // ADDED Q3
 
 static uint64 (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -129,107 +129,36 @@ static uint64 (*syscalls[])(void) = {
 [SYS_link]    sys_link,
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
-[SYS_trace]   sys_trace,
-[SYS_wait_stat]   sys_wait_stat,
+[SYS_trace]   sys_trace, // ADDED Q2
+[SYS_wait_stat]   sys_wait_stat, // ADDED Q3
 };
 
-char*
-get_syscall_name(int num){
-  switch (num)
-  {
-  case SYS_fork:
-    return "fork";
-    break;
-  
-  case SYS_exit:
-    return "exit";
-    break;
-  
-  case SYS_wait:
-    return "wait";
-    break;
-  
-  case SYS_pipe:
-    return "pipe";
-    break;
-  
-  case SYS_read:
-    return "read";
-    break;
-  
-  case SYS_kill:
-    return "kill";
-    break;
-  
-  case SYS_exec:
-    return "exec";
-    break;
-  
-  case SYS_fstat:
-    return "fstat";
-    break;
-  
-  case SYS_chdir:
-    return "chdir";
-    break;
-  
-  case SYS_dup:
-    return "dup";
-    break;
-  
-  case SYS_getpid:
-    return "getpid";
-    break;
-  
-  case SYS_sbrk:
-    return "sbrk";
-    break;
-  
-  case SYS_sleep:
-    return "sleep";
-    break;
-  
-  case SYS_uptime:
-    return "uptime";
-    break;
-  
-  case SYS_open:
-    return "open";
-    break;
-  
-  case SYS_write:
-    return "write";
-    break;
-  
-  case SYS_mknod:
-    return "mknod";
-    break;
-  
-  case SYS_unlink:
-    return "unlink";
-    break;
-  
-  case SYS_link:
-    return "link";
-    break;
-  
-  case SYS_mkdir:
-    return "mkdir";
-    break;
-  
-  case SYS_close:
-    return "close";
-    break;
-  
-  case SYS_trace:
-    return "trace";
-    break;
-  
-  default:
-    return "unknown syscall name";
-    break;
-  }
-}
+// ADDED Q2 - crete syscalls names array 
+static char* (sysnames[]) = {
+[SYS_fork]    "fork",
+[SYS_exit]    "exit",
+[SYS_wait]    "wait",
+[SYS_pipe]    "pipe",
+[SYS_read]    "read",
+[SYS_kill]    "kill",
+[SYS_exec]    "exec",
+[SYS_fstat]   "fstat",
+[SYS_chdir]   "chdir",
+[SYS_dup]     "dup",
+[SYS_getpid]  "getpid",
+[SYS_sbrk]    "sbrk",
+[SYS_sleep]   "sleep",
+[SYS_uptime]  "ptime",
+[SYS_open]    "open",
+[SYS_write]   "write",
+[SYS_mknod]   "mknod",
+[SYS_unlink]  "unlink",
+[SYS_link]    "link",
+[SYS_mkdir]   "mkdir",
+[SYS_close]   "close",
+[SYS_trace]   "trace", // ADDED Q2
+[SYS_wait_stat]   "wait_stat", // ADDED Q3
+};
 
 void
 syscall(void)
@@ -242,11 +171,12 @@ syscall(void)
     int arg;
     int arg_int = argint(0, &arg);
     p->trapframe->a0 = syscalls[num]();
-    //Q2
-    int syscall_on = p->trace_mask & (1 << num);
 
-    if(syscall_on){
-      char *syscall_name = get_syscall_name(num);
+    // ADDED Q2 - print traced syscall if needed
+    int syscall_traced = p->trace_mask & (1 << num);
+
+    if(syscall_traced){
+      char *syscall_name = sysnames[num];
       switch (num) {
       case SYS_fork:
         printf("%d: syscall %s NULL -> %d\n",p->pid, syscall_name, p->trapframe->a0);

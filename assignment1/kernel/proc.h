@@ -80,6 +80,7 @@ struct trapframe {
   /* 280 */ uint64 t6;
 };
 
+  // ADDED Q3
   // scheduling measures.
   struct perf {
     int ctime; // process creation time.
@@ -102,8 +103,8 @@ struct proc {
   int killed;                  // If non-zero, have been killed
   int xstate;                  // Exit status to be returned to parent's wait
   int pid;                     // Process ID
-  int trace_mask;              // represent which sys calls we have to trace  
-  struct perf *performance;    // scheduling measures.             
+  int trace_mask;              // ADDED Q2 represent which sys calls we have to trace  
+  struct perf performance;     // ADDED Q3 scheduling measures.             
 
   // proc_tree_lock must be held when using this:
   struct proc *parent;         // Parent process

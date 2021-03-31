@@ -36,5 +36,5 @@ entry("getpid");
 entry("sbrk");
 entry("sleep");
 entry("uptime");
-entry("trace");
-entry("wait_stat");
+entry("trace"); # ADDED Q2
+entry("wait_stat"); # ADDED Q3

@@ -96,6 +96,7 @@ sys_uptime(void)
   return xticks;
 }
 
+// ADDED Q2 - create syscall for trace
 uint64
 sys_trace(void)
 {
@@ -111,17 +112,18 @@ sys_trace(void)
   return trace(mask, pid);
 }
 
+// ADDED Q3 - create syscall for wait_stat
 uint64
 sys_wait_stat(void)
 {
-  int status;
-  struct perf performance;
+  uint64 status;
+  uint64 performance;
 
-  if(argint(0, &status) < 0)
+  if(argaddr(0, &status) < 0)
     return -1;
 
-  if(argaddr(1, (uint64 *)&performance) < 0) // TODO SEG!
+  if(argaddr(1, &performance) < 0) 
     return -1;
 
-  return wait_stat(&status, &performance);
+  return wait_stat(status, performance);
 }
