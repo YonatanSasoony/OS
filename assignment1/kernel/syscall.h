@@ -22,3 +22,4 @@
 #define SYS_close  21
 #define SYS_trace  22 // ADDED Q2
 #define SYS_wait_stat 23 // ADDED Q3
+#define SYS_set_priority 24 // ADDED Q4.4

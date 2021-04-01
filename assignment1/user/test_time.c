@@ -7,6 +7,8 @@
 #include "kernel/riscv.h"
 #include "kernel/proc.h"
 
+// TODO - remove
+
 int main(int argc, char** argv){
 
     int cpid = fork();

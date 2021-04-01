@@ -105,6 +105,9 @@ struct proc {
   int pid;                     // Process ID
   int trace_mask;              // ADDED Q2 represent which sys calls we have to trace  
   struct perf performance;     // ADDED Q3 scheduling measures.             
+  uint turn;                   // ADDED Q4.2 turn for FCFS scheduler
+  int btime;                   // ADDED Q4.3 process starting burst time
+  int priority;                // ADDED Q4.4 priority value for the current process (1-5) 
 
   // proc_tree_lock must be held when using this:
   struct proc *parent;         // Parent process

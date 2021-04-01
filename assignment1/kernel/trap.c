@@ -8,6 +8,7 @@
 
 struct spinlock tickslock;
 uint ticks;
+int timer_interrupt_cnt = 0; // ADDED Q4
 
 extern char trampoline[], uservec[], userret[];
 
@@ -76,10 +77,19 @@ usertrap(void)
   if(p->killed)
     exit(-1);
 
-  // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
-    yield();
-
+  // ADDED Q4 - yield for preemptive schedulers
+  #ifndef FCFS
+    // give up the CPU if this is a timer interrupt.
+    if(which_dev == 2){
+      // ADDED Q4 - yield every QUNATUM ticks instead of 1.
+      timer_interrupt_cnt++;
+      if(timer_interrupt_cnt == QUANTUM){
+        timer_interrupt_cnt = 0;
+        yield();
+      }
+    }
+  #endif
+    
   usertrapret();
 }
 

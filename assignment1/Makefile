@@ -1,5 +1,6 @@
 K=kernel
 U=user
+SCHEDFLAG=DEFAULT # ADDED Q4
 
 OBJS = \
   $K/entry.o \
@@ -62,6 +63,7 @@ CFLAGS += -mcmodel=medany
 CFLAGS += -ffreestanding -fno-common -nostdlib -mno-relax
 CFLAGS += -I.
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
+CFLAGS += -D $(SCHEDFLAG) # ADDED Q4
 
 # Disable PIE when possible (for Ubuntu 16.10 toolchain)
 ifneq ($(shell $(CC) -dumpspecs 2>/dev/null | grep -e '[^f]no-pie'),)
@@ -119,8 +121,11 @@ mkfs/mkfs: mkfs/mkfs.c $K/fs.h $K/param.h
 _path:
 	echo "/:/bin/:" > _path
 
+# ADDED Q1 path
+# ADDED Q2 trace
+# TODO - remove test_trace test_time
 UPROGS=\
-	_path\ # ADDED Q1
+	_path\
 	$U/_cat\
 	$U/_echo\
 	$U/_forktest\
@@ -137,9 +142,9 @@ UPROGS=\
 	$U/_grind\
 	$U/_wc\
 	$U/_zombie\
-	$U/_trace\ # ADDED Q2
-	$U/_test_trace\ # TODO - REMOVE
-	$U/_test_time\ # TODO - REMOVE
+	$U/_trace\
+	$U/_test_trace\
+	$U/_test_time\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)

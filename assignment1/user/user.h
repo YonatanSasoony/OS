@@ -26,6 +26,7 @@ int sleep(int);
 int uptime(void);
 int trace(int, int); // ADDED Q2
 int wait_stat(int*, struct perf*); // ADDED Q3
+int set_priority(int); // ADDED Q4.4
 
 // ulib.c
 int stat(const char*, struct stat*);

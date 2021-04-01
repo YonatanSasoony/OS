@@ -106,6 +106,7 @@ extern uint64 sys_write(void);
 extern uint64 sys_uptime(void);
 extern uint64 sys_trace(void); // ADDED Q2
 extern uint64 sys_wait_stat(void); // ADDED Q3
+extern uint64 sys_set_priority(void); // ADDED Q4.4
 
 static uint64 (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -131,6 +132,7 @@ static uint64 (*syscalls[])(void) = {
 [SYS_close]   sys_close,
 [SYS_trace]   sys_trace, // ADDED Q2
 [SYS_wait_stat]   sys_wait_stat, // ADDED Q3
+[SYS_set_priority] sys_set_priority, // ADDED Q4.4
 };
 
 // ADDED Q2 - crete syscalls names array 
@@ -158,6 +160,7 @@ static char* (sysnames[]) = {
 [SYS_close]   "close",
 [SYS_trace]   "trace", // ADDED Q2
 [SYS_wait_stat]   "wait_stat", // ADDED Q3
+[SYS_set_priority] "set_priority", // ADDED Q4.4
 };
 
 void

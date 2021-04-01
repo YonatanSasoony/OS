@@ -26,6 +26,10 @@ extern char trampoline[]; // trampoline.S
 // must be acquired before any p->lock.
 struct spinlock wait_lock;
 
+//ADDED: Q4 - turns lock for FCFS scheduler
+struct spinlock turn_lock;
+uint turns = 0;
+
 // Allocate a page for each process's kernel stack.
 // Map it high in memory, followed by an invalid
 // guard page.
@@ -125,6 +129,10 @@ found:
   acquire(&tickslock);
   p->performance.ctime = ticks;
   release(&tickslock);
+
+  // ADDED Q4.3
+  p->performance.average_bursttime = A1;
+
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -228,6 +236,14 @@ uchar initcode[] = {
   0x00, 0x00, 0x00, 0x00
 };
 
+//ADDED Q4.2
+void
+update_turn(struct proc *p) {
+  acquire(&turn_lock);
+  p->turn = turns++;
+  release(&turn_lock);
+}
+
 // Set up first user process.
 void
 userinit(void)
@@ -250,6 +266,12 @@ userinit(void)
   p->cwd = namei("/");
 
   p->state = RUNNABLE;
+
+//ADDED Q4 - init turn_lock
+  #ifdef FCFS
+    initlock(&turn_lock, "next_turn");
+    update_turn(p);
+  #endif
 
   release(&p->lock);
 }
@@ -321,6 +343,11 @@ fork(void)
   acquire(&np->lock);
   np->state = RUNNABLE;
   np->trace_mask = p->trace_mask; // ADDED Q2
+  np->performance.average_bursttime = A1; // ADDED Q4.3
+  //ADDED Q4 
+  #ifdef FCFS
+    update_turn(p);
+  #endif
   release(&np->lock);
 
   return pid;
@@ -383,7 +410,6 @@ exit(int status)
   acquire(&tickslock);
   p->performance.ttime = ticks;
   release(&tickslock);
-
   release(&wait_lock);
 
   // Jump into the scheduler, never to return.
@@ -440,6 +466,208 @@ wait(uint64 addr)
   }
 }
 
+void
+fcfs_scheduler(void){
+  struct proc *p;
+  struct cpu *c = mycpu();
+  
+  c->proc = 0;
+  for(;;){
+    // Avoid deadlock by ensuring that devices can interrupt.
+    intr_on();
+    
+    uint min_turn = MAX_UINT;
+    //struct proc *min_p = 0;
+    //int min_p = -1;
+    int i = 0;
+
+    for(i = 0, p = proc; p < &proc[NPROC]; p++, i++) {
+      acquire(&p->lock);
+      if(p->state == RUNNABLE) {
+        if(p->turn < min_turn){
+          min_turn = p->turn;
+         // min_p = i;
+        }
+      }
+      release(&p->lock);
+    }
+
+    for(p = proc; p < &proc[NPROC]; p++) {
+      acquire(&p->lock);
+      if(p->state == RUNNABLE && p->turn == min_turn) {
+        //printf("p running - pid:%d\n",p->pid); // TODO REMOVE
+        p->state = RUNNING;
+        c->proc = p;
+        swtch(&c->context, &p->context);
+
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+        c->proc = 0;
+      }
+      release(&p->lock);
+    }
+    
+    // if (min_p != -1) {
+    //   //run min_p
+
+    //   acquire(&proc[min_p].lock);
+    //   //printf("acquired min_p lock, pid:%d\n",min_p->pid);
+    //   //avoid a situation in which two CPUs runs min_p twice in a row
+    //   if(proc[min_p].turn == min){
+    //   //  printf("min p found, pid:%d\n",min_p->pid);
+    //    // printf("turn:%d, min turn:%d\n",min_p->turn,min);
+    //     proc[min_p].state = RUNNING;
+    //     c->proc = &proc[min_p];
+    //    // printf("min p about to swtch, pid:%d\n",min_p->pid);
+    //     swtch(&c->context, &proc[min_p].context);
+    //    // printf("min p returned, pid:%d\n",min_p->pid);
+    //     // Process is done running for now.
+    //     // It should have changed its p->state & p->turn before coming back.
+    //     c->proc = 0;
+    //   }
+    // //  printf("about to release min_p lock, pid:%d\n",min_p->pid);
+    //   release(&proc[min_p].lock);
+    //  // printf("released min_p lock, pid:%d\n",min_p->pid);
+    // }
+  }
+}
+
+//ADDED Q4.3
+void 
+srt_scheduler(void){
+   struct proc *p;
+  struct cpu *c = mycpu();
+  
+  c->proc = 0;
+  for(;;){
+    // Avoid deadlock by ensuring that devices can interrupt.
+    intr_on();
+    
+    uint min_burst = MAX_UINT;
+
+    for(p = proc; p < &proc[NPROC]; p++) {
+      acquire(&p->lock);
+      if(p->state == RUNNABLE) {
+        if(p->performance.average_bursttime < min_burst){
+          min_burst = p->performance.average_bursttime;
+        }
+      }
+      release(&p->lock);
+    }
+    
+    //printf("min_burst: %d\n", min_burst);
+    
+    for(p = proc; p < &proc[NPROC]; p++) {
+      acquire(&p->lock);
+      if(p->state == RUNNABLE && p->performance.average_bursttime == min_burst) {
+        printf("p running - pid:%d\n",p->pid); // TODO REMOVE
+        p->state = RUNNING;
+        c->proc = p;
+        swtch(&c->context, &p->context);
+
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+        printf("p state: %d\n",p->state);
+        printf("done running pid:%d\n\n",p->pid);
+        c->proc = 0;
+      } 
+      release(&p->lock);
+    }
+
+    
+    // if (min_p != -1) {
+    //   //run min_p
+
+    //   acquire(&proc[min_p].lock);
+    //   printf("acquired min_p lock, pid:%d\n",proc[min_p].pid);
+    //   //avoid a situation in which two CPUs runs min_p twice in a row
+    //   if(proc[min_p].performance.average_bursttime == min_burst){
+    //   //  printf("min p found, pid:%d\n",min_p->pid);
+    //    // printf("turn:%d, min turn:%d\n",min_p->turn,min);
+    //     proc[min_p].state = RUNNING;
+    //     c->proc = &proc[min_p];
+    //    // printf("min p about to swtch, pid:%d\n",min_p->pid);
+
+    //     acquire(&tickslock);
+    //     proc[min_p].btime = ticks;
+    //     release(&tickslock);
+
+    //     swtch(&c->context, &proc[min_p].context);
+    //    // printf("min p returned, pid:%d\n",min_p->pid);
+    //     // Process is done running for now.
+    //     // It should have changed its p->state & p->turn before coming back.
+    //     c->proc = 0;
+    //   }
+    // //  printf("about to release min_p lock, pid:%d\n",min_p->pid);
+    //   release(&proc[min_p].lock);
+    //   printf("released min_p lock, pid:%d\n",proc[min_p].pid);
+    // }
+  }
+}
+
+// ADDED Q4.4
+
+int get_decay_factor(int priority){
+  switch (priority) {
+    case 1: return 1;
+    case 2: return 3;
+    case 3: return 5;
+    case 4: return 7;
+    case 5: return 25;
+    default: return MAX_UINT;
+  }
+}
+
+int get_ratio(struct proc *p){
+  int decay = get_decay_factor(p->priority);
+  return (decay * p->performance.rutime) / (p->performance.rutime + p->performance.stime);
+}
+
+void
+cfsd_scheduler(void){
+  struct proc *p;
+  struct cpu *c = mycpu();
+  
+  c->proc = 0;
+  for(;;){
+    // Avoid deadlock by ensuring that devices can interrupt.
+    intr_on();
+    
+    uint min_ratio = MAX_UINT;
+    for(p = proc; p < &proc[NPROC]; p++) {
+      acquire(&p->lock);
+      if(p->state == RUNNABLE) {
+        uint ratio = get_ratio(p);
+        if(ratio < min_ratio){
+          min_ratio = ratio;
+        }
+      }
+      release(&p->lock);
+    }
+
+    for(p = proc; p < &proc[NPROC]; p++) {
+      acquire(&p->lock);
+      if(p->state == RUNNABLE) {
+        uint ratio = get_ratio(p);
+        if (ratio == min_ratio) {
+          p->state = RUNNING;
+          c->proc = p;
+          swtch(&c->context, &p->context);
+
+        // Process is done running for now.
+        // It should have changed its p->state before coming back.
+          c->proc = 0;
+        }
+      }
+      release(&p->lock);
+    }
+  }
+}
+
+// void 
+// cfsd_scheduler(void){
+// }
+
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
 // Scheduler never returns.  It loops, doing:
@@ -447,8 +675,9 @@ wait(uint64 addr)
 //  - swtch to start running that process.
 //  - eventually that process transfers control
 //    via swtch back to the scheduler.
+
 void
-scheduler(void)
+default_scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
@@ -464,6 +693,7 @@ scheduler(void)
         // Switch to chosen process.  It is the process's job
         // to release its lock and then reacquire it
         // before jumping back to us.
+        printf("p running - pid:%d\n",p->pid); // TODO REMOVE
         p->state = RUNNING;
         c->proc = p;
         swtch(&c->context, &p->context);
@@ -476,6 +706,28 @@ scheduler(void)
     }
   }
 }
+
+// ADDED Q4 - creating schedulers
+void
+scheduler(void) {
+  #ifdef DEFAULT
+    default_scheduler();
+  #endif
+
+  #ifdef FCFS
+    fcfs_scheduler();
+  #endif
+  
+  #ifdef SRT
+     srt_scheduler();
+  #endif
+
+  #ifdef CFSD
+     cfds_scheduler();
+  #endif
+  for (;;) {} // for compiling TODO CHECK REMOVE
+}
+
 
 // Switch to scheduler.  Must hold only p->lock
 // and have changed proc->state. Saves and restores
@@ -500,6 +752,19 @@ sched(void)
     panic("sched interruptible");
 
   intena = mycpu()->intena;
+
+  #ifdef SRT
+    acquire(&tickslock);
+    uint B = ticks - p->btime;
+    release(&tickslock);
+    printf("updating avg burst \n");
+    printf("pid: %d, A_I = %d, B = %d\n",p->pid,p->performance.average_bursttime,B);
+    p->performance.average_bursttime = (ALPHA * B) + 
+        (100-ALPHA) * p->performance.average_bursttime / 100;
+    printf("pid: %d, A_I+1 = %d\n",p->pid,p->performance.average_bursttime);
+
+  #endif
+
   swtch(&p->context, &mycpu()->context);
   mycpu()->intena = intena;
 }
@@ -511,6 +776,10 @@ yield(void)
   struct proc *p = myproc();
   acquire(&p->lock);
   p->state = RUNNABLE;
+  //ADDED Q4
+  #ifdef FCFS
+    update_turn(p);
+  #endif
   sched();
   release(&p->lock);
 }
@@ -579,6 +848,10 @@ wakeup(void *chan)
       acquire(&p->lock);
       if(p->state == SLEEPING && p->chan == chan) {
         p->state = RUNNABLE;
+        //ADDED Q4
+        #ifdef FCFS
+          update_turn(p);
+        #endif
       }
       release(&p->lock);
     }
@@ -600,6 +873,10 @@ kill(int pid)
       if(p->state == SLEEPING){
         // Wake process from sleep().
         p->state = RUNNABLE;
+        //ADDED Q4
+        #ifdef FCFS
+          update_turn(p);
+        #endif
       }
       release(&p->lock);
       return 0;
@@ -750,6 +1027,18 @@ struct proc *np;
     // Wait for a child to exit.
     sleep(p, &wait_lock);  //DOC: wait-sleep
   }
+}
+
+int 
+set_priority(int priority) {
+  struct proc *p = myproc();
+  if (priority >= 1 && priority <= 5) {
+    acquire(&p->lock);
+    p->priority = priority;
+    release(&p->lock);
+    return 0;  
+  }
+  return -1;
 }
 
 

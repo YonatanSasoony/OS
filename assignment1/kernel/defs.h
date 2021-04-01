@@ -109,6 +109,7 @@ void            procdump(void);
 int             trace(int, int); // ADDED Q2
 void            update_perf(void); // ADDED Q3
 int             wait_stat(uint64, uint64); // ADDED Q3
+int             set_priority(int); // ADDED Q4.4
 
 // swtch.S
 void            swtch(struct context*, struct context*);

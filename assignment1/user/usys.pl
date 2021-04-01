@@ -38,3 +38,4 @@ entry("sleep");
 entry("uptime");
 entry("trace"); # ADDED Q2
 entry("wait_stat"); # ADDED Q3
+entry("set_priority"); # ADDED Q4.4

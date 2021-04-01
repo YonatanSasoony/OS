@@ -127,3 +127,14 @@ sys_wait_stat(void)
 
   return wait_stat(status, performance);
 }
+
+// ADDED Q4.4
+uint64
+sys_set_priority(void)
+{
+  int priority;
+
+  if(argint(0, &priority) < 0)
+    return -1;
+  return set_priority(priority);
+}
