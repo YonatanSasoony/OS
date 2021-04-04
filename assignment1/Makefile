@@ -123,7 +123,6 @@ _path:
 
 # ADDED Q1 path
 # ADDED Q2 trace
-# TODO - remove test_trace test_time
 UPROGS=\
 	_path\
 	$U/_cat\
@@ -143,8 +142,6 @@ UPROGS=\
 	$U/_wc\
 	$U/_zombie\
 	$U/_trace\
-	$U/_test_trace\
-	$U/_test_time\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)
@@ -166,7 +163,7 @@ QEMUGDB = $(shell if $(QEMU) -help | grep -q '^-gdb'; \
 	then echo "-gdb tcp::$(GDBPORT)"; \
 	else echo "-s -p $(GDBPORT)"; fi)
 ifndef CPUS
-CPUS := 3
+CPUS := 1
 endif
 
 QEMUOPTS = -machine virt -bios none -kernel $K/kernel -m 128M -smp $(CPUS) -nographic
