@@ -9,6 +9,13 @@ struct sleeplock;
 struct stat;
 struct superblock;
 
+ // ADDED Q2.1.4
+ //TODO: WHERE?
+struct sigaction {
+void (*sa_handler) (int);
+uint sigmask;
+};
+
 // bio.c
 void            binit(void);
 struct buf*     bread(uint, uint);
@@ -89,7 +96,7 @@ int             growproc(int);
 void            proc_mapstacks(pagetable_t);
 pagetable_t     proc_pagetable(struct proc *);
 void            proc_freepagetable(pagetable_t, uint64);
-int             kill(int);
+int             kill(int, int); // ADDED Q2.2.1
 struct cpu*     mycpu(void);
 struct cpu*     getmycpu(void);
 struct proc*    myproc();
@@ -105,6 +112,9 @@ void            yield(void);
 int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
+uint            sigprocmask(uint); // ADDED Q2.1.3
+int             sigaction(int, const struct sigaction *, struct sigaction *); // ADDED Q2.1.4
+void            sigret(void); // ADDED Q2.1.5
 
 // swtch.S
 void            swtch(struct context*, struct context*);

@@ -7,6 +7,7 @@
 #include "kernel/syscall.h"
 #include "kernel/memlayout.h"
 #include "kernel/riscv.h"
+#include "kernel/proc.h"
 
 //
 // Tests xv6 system calls.  usertests without arguments runs them all
@@ -799,7 +800,7 @@ killstatus(char *s)
       exit(0);
     }
     sleep(1);
-    kill(pid1);
+    kill(pid1, SIGKILL); // ADDED Q2.2.2
     wait(&xst);
     if(xst != -1) {
        printf("%s: status should be -1\n", s);
@@ -856,9 +857,9 @@ preempt(char *s)
   }
   close(pfds[0]);
   printf("kill... ");
-  kill(pid1);
-  kill(pid2);
-  kill(pid3);
+  kill(pid1, SIGKILL); // ADDED Q2.2.2
+  kill(pid2, SIGKILL); // ADDED Q2.2.2
+  kill(pid3, SIGKILL); // ADDED Q2.2.2
   printf("wait... ");
   wait(0);
   wait(0);
@@ -914,7 +915,7 @@ reparent(char *s)
     } else {
       int pid2 = fork();
       if(pid2 < 0){
-        kill(master_pid);
+        kill(master_pid, SIGKILL); // ADDED Q2.2.2
         exit(1);
       }
       exit(0);
@@ -2263,7 +2264,7 @@ sbrkfail(char *s)
   for(i = 0; i < sizeof(pids)/sizeof(pids[0]); i++){
     if(pids[i] == -1)
       continue;
-    kill(pids[i]);
+    kill(pids[i], SIGKILL); // ADDED Q2.2.2
     wait(0);
   }
   if(c == (char*)0xffffffffffffffffL){

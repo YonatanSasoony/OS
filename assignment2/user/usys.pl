@@ -36,3 +36,6 @@ entry("getpid");
 entry("sbrk");
 entry("sleep");
 entry("uptime");
+entry("sigprocmask"); # ADDED Q2.1.3
+entry("sigaction"); # ADDED Q2.1.4
+entry("sigret"); # ADDED Q2.1.5

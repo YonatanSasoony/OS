@@ -73,14 +73,20 @@ sys_sleep(void)
   return 0;
 }
 
+// ADDED Q2.2.1
 uint64
 sys_kill(void)
 {
   int pid;
+  int signum;
 
   if(argint(0, &pid) < 0)
     return -1;
-  return kill(pid);
+
+  if(argint(1, &signum) < 0)
+    return -1;
+
+  return kill(pid, signum);
 }
 
 // return how many clock tick interrupts have occurred
@@ -94,4 +100,44 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+// ADDED Q2.1.3
+uint64
+sys_sigprocmask(void)
+{
+  uint sigmask;
+
+  if(argint(0, &sigmask) < 0) // TODO: argUint??????
+    return -1;
+
+  return sigprocmask(sigmask);
+}
+
+// ADDED Q2.1.4
+uint64
+sys_sigaction(void)
+{
+  int signum;
+  const struct sigaction *act;
+  struct sigaction *oldact;
+
+  if(argint(0, &signum) < 0)
+    return -1;
+
+  if(argaddr(1, &act) < 0)
+    return -1;
+
+  if(argaddr(2, &oldact) < 0)
+    return -1;
+
+  return sigaction(signum, act, oldact);
+}
+
+// ADDED Q2.1.5
+uint64
+sys_sigaction(void)
+{
+  //TODO: return statment?
+  sigret();
 }

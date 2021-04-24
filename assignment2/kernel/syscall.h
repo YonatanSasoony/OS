@@ -20,3 +20,6 @@
 #define SYS_link   19
 #define SYS_mkdir  20
 #define SYS_close  21
+#define SYS_sigprocmask 22 // ADDED Q2.1.3
+#define SYS_sigaction 23 // ADDED Q2.1.4
+#define SYS_sigret 24 // ADDED Q2.1.5

@@ -104,6 +104,9 @@ extern uint64 sys_unlink(void);
 extern uint64 sys_wait(void);
 extern uint64 sys_write(void);
 extern uint64 sys_uptime(void);
+extern uint64 sys_sigprocmask(void); // ADDED Q2.1.3
+extern uint64 sys_sigaction(void); // ADDED Q2.1.4
+extern uint64 sys_sigret(void); // ADDED Q2.1.5
 
 static uint64 (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -127,6 +130,9 @@ static uint64 (*syscalls[])(void) = {
 [SYS_link]    sys_link,
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
+[SYS_sigprocmask]   sys_sigprocmask, // ADDED Q2.1.3
+[SYS_sigaction]   sys_sigaction, // ADDED Q2.1.4
+[SYS_sigret]   sys_sigret, // ADDED Q2.1.5
 };
 
 void

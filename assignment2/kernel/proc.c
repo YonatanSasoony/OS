@@ -229,7 +229,6 @@ userinit(void)
 
   p = allocproc();
   initproc = p;
-  
   // allocate one user page and copy init's instructions
   // and data into it.
   uvminit(p->pagetable, initcode, sizeof(initcode));
@@ -277,7 +276,7 @@ fork(void)
   struct proc *p = myproc();
 
   // Allocate process.
-  if((np = allocproc()) == 0){
+  if((np = allocproc()) == 0) {
     return -1;
   }
 
@@ -313,6 +312,11 @@ fork(void)
 
   acquire(&np->lock);
   np->state = RUNNABLE;
+  np->signal_mask = p->signal_mask;  // ADDED Q2.1.2
+  for(int i=0; i<SIG_NUM; i++) {// ADDED Q2.1.2
+    np->signal_handlers[i] = p->signal_handlers[i];    
+  }
+  np->pending_signals = 0; // ADDED Q2.1.2
   release(&np->lock);
 
   return pid;
@@ -575,24 +579,49 @@ wakeup(void *chan)
 // Kill the process with the given pid.
 // The victim won't exit until it tries to return
 // to user space (see usertrap() in trap.c).
+
+//TODO: remove old kill
+// int
+// kill(int pid)
+// {
+//   struct proc *p;
+
+//   for(p = proc; p < &proc[NPROC]; p++){
+//     acquire(&p->lock);
+//     if(p->pid == pid){
+//       p->killed = 1;
+//       if(p->state == SLEEPING){
+//         // Wake process from sleep().
+//         p->state = RUNNABLE;
+//       }
+//       release(&p->lock);
+//       return 0;
+//     }
+//     release(&p->lock);
+//   }
+//   return -1;
+// }
+
+
+// ADDED Q2.2.1
 int
-kill(int pid)
+kill(int pid, int signum)
 {
   struct proc *p;
-
+  if (signum < 0 || signum >= SIG_NUM) {
+    return -1;
+  }
+  
   for(p = proc; p < &proc[NPROC]; p++){
     acquire(&p->lock);
-    if(p->pid == pid){
-      p->killed = 1;
-      if(p->state == SLEEPING){
-        // Wake process from sleep().
-        p->state = RUNNABLE;
-      }
+    if(p->pid == pid) {
+      p->pending_signals = p->pending_signals | (1 << signum);
       release(&p->lock);
       return 0;
     }
     release(&p->lock);
   }
+  // no such pid
   return -1;
 }
 
@@ -654,3 +683,55 @@ procdump(void)
     printf("\n");
   }
 }
+
+// ADDED Q2.1.3
+uint
+sigprocmask(uint sigmask)
+{
+  struct proc *p = myproc();
+  uint old_mask = p->signal_mask;
+  //SIGKILL and SIGSTOP cannot be blocked
+  if( ((sigmask & (1 << SIGKILL)) != 0) || ((sigmask & (1 << SIGSTOP)) != 0) ){
+    return -1;
+  }
+  p->signal_mask = sigmask;
+  return old_mask;
+}
+
+// ADDED Q2.1.4
+int
+sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
+{
+  //SIGKILL and SIGSTOP cannot be modified
+  if (signum < 0 || signum >= SIG_NUM || signum ==SIGKILL || signum ==SIGSTOP) {
+    return -1;
+  }
+
+  //SIGKILL and SIGSTOP cannot be ignored
+  if(act && ( ((act->sigmask & (1 << SIGKILL)) != 0) || ((act->sigmask & (1 << SIGSTOP)) != 0)) ) {
+    return -1;
+  }
+
+  struct proc *p = myproc();
+
+  if (oldact) {
+    oldact->sa_handler = p->signal_handlers[signum];
+    oldact->sigmask = p->signal_handlers_masks[signum];
+  }
+
+  if (act) {
+    p->signal_handlers[signum] = act->sa_handler;
+    p->signal_handlers_masks[signum] = act->sigmask;
+  }
+
+  return 0;
+}
+
+// ADDED Q2.1.5
+void
+sigret(void)
+{
+  //TODO in section 2.4
+  //This system call will be called implicitly when returning from user space after handling a signal.
+}
+

@@ -11,6 +11,7 @@
 #include "kernel/syscall.h"
 #include "kernel/memlayout.h"
 #include "kernel/riscv.h"
+#include "kernel/proc.h" // ADDED Q2.2.2
 
 // from FreeBSD.
 int
@@ -142,12 +143,12 @@ go(int which_child)
         printf("grind: chdir failed\n");
         exit(1);
       }
-      kill(pid);
+      kill(pid, SIGKILL); // ADDED Q2.2.2
       wait(0);
     } else if(what == 18){
       int pid = fork();
       if(pid == 0){
-        kill(getpid());
+        kill(getpid(), SIGKILL); // ADDED Q2.2.2
         exit(0);
       } else if(pid < 0){
         printf("grind: fork failed\n");
@@ -324,8 +325,8 @@ iter()
   int st1 = -1;
   wait(&st1);
   if(st1 != 0){
-    kill(pid1);
-    kill(pid2);
+    kill(pid1, SIGKILL); // ADDED Q2.2.2
+    kill(pid2, SIGKILL);  // ADDED Q2.2.2
   }
   int st2 = -1;
   wait(&st2);
