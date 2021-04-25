@@ -1,12 +1,3 @@
-// ADDED Q2.1.1
-#define SIG_DFL 0 /* default signal handling */
-#define SIG_IGN 1 /* ignore signal */
-#define SIGKILL 9
-#define SIGSTOP 17
-#define SIGCONT 19
-
-#define SIG_NUM 32
-
 // Saved registers for kernel context switches.
 struct context {
   uint64 ra;
@@ -105,6 +96,7 @@ struct proc {
   // ADDED Q2.1.1
   uint pending_signals; // Represents which signals this process should be handled 
   uint signal_mask; // Represents which signals this process should block generally
+  uint signal_mask_backup; // ADDED Q2.4
   void* signal_handlers[SIG_NUM]; //array of signal handles
   
   uint signal_handlers_masks[SIG_NUM]; // ADDED Q2.1.4
@@ -114,6 +106,9 @@ struct proc {
   // When the process finishes the signal handling, it should restore its original trapframe.
   struct trapframe *trapframe_backup;
 
+  int stopped; // ADDED Q2.3.1 . If non-zero, has been stopped.
+  int handling_user_level_signal; // ADDED Q2.4
+  
   // proc_tree_lock must be held when using this:
   struct proc *parent;         // Parent process
 

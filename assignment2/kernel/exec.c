@@ -117,10 +117,10 @@ exec(char *path, char **argv)
   proc_freepagetable(oldpagetable, oldsz);
   
   // ADDED 2.1.2
-  //TODO: ask omri
-  for(int i=0; i<SIG_NUM; i++){
-    if(i != SIG_IGN && i != SIG_DFL) {
-      p->signal_handlers[i] = SIG_DFL;
+  for(int signum=0; i<SIG_NUM; signum++){
+    p->signal_handlers_masks[signum] = 0;
+    if(p->signal_handlers[signum] != SIG_IGN) {
+      p->signal_handlers[signum] = SIG_DFL;
     }
   }
 

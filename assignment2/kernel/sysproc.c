@@ -108,7 +108,7 @@ sys_sigprocmask(void)
 {
   uint sigmask;
 
-  if(argint(0, &sigmask) < 0) // TODO: argUint??????
+  if(argint(0, (int *)&sigmask) < 0) 
     return -1;
 
   return sigprocmask(sigmask);
@@ -136,8 +136,8 @@ sys_sigaction(void)
 
 // ADDED Q2.1.5
 uint64
-sys_sigaction(void)
+sys_sigret(void)
 {
-  //TODO: return statment?
   sigret();
+  return 0;
 }
