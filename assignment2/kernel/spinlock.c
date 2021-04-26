@@ -22,13 +22,15 @@ void
 acquire(struct spinlock *lk)
 {
   push_off(); // disable interrupts to avoid deadlock.
-  if(holding(lk))
+  if(holding(lk)) {
+    printf("PANIC-%s",lk->name);
     panic("acquire");
-
+  }
   // On RISC-V, sync_lock_test_and_set turns into an atomic swap:
   //   a5 = 1
   //   s1 = &lk->locked
   //   amoswap.w.aq a5, a5, (s1)
+  
   while(__sync_lock_test_and_set(&lk->locked, 1) != 0)
     ;
 
@@ -46,9 +48,10 @@ acquire(struct spinlock *lk)
 void
 release(struct spinlock *lk)
 {
-  if(!holding(lk))
+  if(!holding(lk)) {
+    printf("PANIC-%s\n",lk->name);
     panic("release");
-
+  }
   lk->cpu = 0;
 
   // Tell the C compiler and the CPU to not move loads or stores

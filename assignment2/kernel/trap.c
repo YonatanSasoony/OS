@@ -91,13 +91,14 @@ usertrapret(void)
 {
   struct proc *p = myproc();
 
-  handle_signals(); // ADDED Q2.4
+  printf("usertrapret\n");//TODO REMOVE
 
   // we're about to switch the destination of traps from
   // kerneltrap() to usertrap(), so turn off interrupts until
   // we're back in user space, where usertrap() is correct.
   intr_off();
-
+  //handle_signals(); // ADDED Q2.4 
+  //TODO HANDLE_SIGNALS ^ 
   // send syscalls, interrupts, and exceptions to trampoline.S
   w_stvec(TRAMPOLINE + (uservec - trampoline));
 
