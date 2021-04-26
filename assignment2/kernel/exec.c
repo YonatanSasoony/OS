@@ -119,7 +119,7 @@ exec(char *path, char **argv)
   // ADDED 2.1.2
   for(int signum=0; i<SIG_NUM; signum++){
     p->signal_handlers_masks[signum] = 0;
-    if(p->signal_handlers[signum] != SIG_IGN) {
+    if(p->signal_handlers[signum] != (void *)SIG_IGN) {
       p->signal_handlers[signum] = SIG_DFL;
     }
   }

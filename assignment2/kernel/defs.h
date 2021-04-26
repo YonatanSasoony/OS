@@ -10,7 +10,6 @@ struct stat;
 struct superblock;
 
  // ADDED Q2.1.4
- //TODO: WHERE?
 struct sigaction {
 void (*sa_handler) (int);
 uint sigmask;
@@ -115,6 +114,8 @@ void            procdump(void);
 uint            sigprocmask(uint); // ADDED Q2.1.3
 int             sigaction(int, const struct sigaction *, struct sigaction *); // ADDED Q2.1.4
 void            sigret(void); // ADDED Q2.1.5
+void            handle_signals(void); // ADDED Q2.4
+
 
 // swtch.S
 void            swtch(struct context*, struct context*);

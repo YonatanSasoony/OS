@@ -473,7 +473,6 @@ stop_handler()
 {
   struct proc *p = myproc();
   p->stopped = 1;
-  //p->handling_signal = 0;
   release(&p->lock);
   while (p->stopped && !received_continue())
   {
@@ -485,79 +484,30 @@ stop_handler()
 // ADDED Q2.3.1
 void
 continue_handler()
-//continue_handler(int signum) // TODO remove
 {
   struct proc *p = myproc();
-  acquire(&p->lock); //TODO remove?
   p->stopped = 0;
-  //p->signal_handlers[signum] = (void *)SIG_IGN; TODO remove
-  release(&p->lock); // TODO remove?
 }
 
 // ADDED Q2.4
 void 
 handle_user_signals(int signum) {
-// **you need to define a new function X that will be responsible for calling the sigret system call.
-
-//   1. You should use "copyin" function to copy (from user to kernel) the sigaction signal handler (defined at user space), at the process page table,
-//      using local variable (to a user space address). 
   struct proc *p = myproc();
-  void *handler;
-  if(copyin(p->pagetable, (char*)&handler, p->signal_handlers[signum], sizeof(void*)) < 0){
-    release(&p->lock);
-    return -1;
-  }
-  //p->signal_mask_backup = sigprocmask(p->signal_handlers_masks[signum]); TODO: already acquire the p->lock
+  
   p->signal_mask_backup = p->signal_mask;
-  p->signal_mask = p->signal_handlers_masks[signum];
-
-  p->handling_user_level_signal = 1;
+  p->signal_mask = p->signal_handlers_masks[signum];  
 
   memmove(p->trapframe_backup, p->trapframe, sizeof(struct trapframe));
 
-  int inject_sigret_size = (uint64) &end_inject_sigret - (uint64) &start_inject_sigret;
-
+  int inject_sigret_size = (uint64)&end_inject_sigret - (uint64)&start_inject_sigret;
   p->trapframe->sp = p->trapframe->sp - inject_sigret_size;
 
   copyout(p->pagetable, (uint64) (p->trapframe->sp), (char *)&start_inject_sigret, inject_sigret_size);
 
   p->trapframe->a0 = signum;
+  p->trapframe->epc = (uint64)p->signal_handlers[signum];
   p->trapframe->ra = p->trapframe->sp;
-  p->trapframe->epc = (uint64)handler;
-
-// 9. You also need to put at the process a0 register the signal number (for the signal handling call), and at the process 
-// return address register the "new" trapframe stack pointer (thus the process will be returned to this address after the user signal handling).
 }
-
-/*
-void handle_user_signals()
-{
-    struct proc *p = myproc();
-    uint64 call_size;
-    acquire(&p->lock);
-    uint pending = p->pending_signals & ~(p->signal_mask);
-    for (int signal = 0; signal < SIGNAL_SIZE; signal++)
-    {
-        if (pending & (1 << signal))
-        {
-            p->handling_signal = 1;
-            p->pending_signals &= ~(1 << signal);
-            void *handler = p->signal_handlers[signal];
-            memmove(p->trapframe_backup, p->trapframe, sizeof(struct trapframe));
-            p->signal_mask_backup = p->signal_mask;
-            p->signal_mask = p->signal_handlers_masks[signal];
-            call_size = (uint64) &call_end - (uint64) &call_start;
-            p->trapframe->sp -= call_size;
-            copyout(p->pagetable, (uint64) (p->trapframe->sp), (char *)&call_start, call_size);
-            p->trapframe->a0 = signal;
-            p->trapframe->ra = p->trapframe->sp;
-            p->trapframe->epc = (uint64) handler;
-        }
-    }
-    release(&p->lock);
-}
-*/
-
 
 // ADDED Q2.4
 void 
@@ -570,14 +520,20 @@ handle_signals()
     if(pending_and_not_blocked & (1 << signum)){
       if ((p->signal_handlers[signum] == (void *)SIG_DFL && signum == SIGSTOP) || p->signal_handlers[signum] == (void *)SIGSTOP) {
         stop_handler();
+        p->pending_signals = p->pending_signals & ~(1 << signum); // turn off pending bit of signal
       } else if ((p->signal_handlers[signum] == (void *)SIG_DFL && signum == SIGCONT) || p->signal_handlers[signum] == (void *)SIGCONT) {
         continue_handler();
+        p->pending_signals = p->pending_signals & ~(1 << signum); // turn off pending bit of signal
       } else if (p->signal_handlers[signum] == (void *)SIG_DFL || (p->signal_handlers[signum] == (void *)SIGKILL)) { 
         kill_handler();
-      } else if (p->signal_handlers[signum] != (void *)SIG_IGN){
+        p->pending_signals = p->pending_signals & ~(1 << signum); // turn off pending bit of signal
+      } else if(p->signal_handlers[signum] == (void *)SIG_IGN ){
+        p->pending_signals = p->pending_signals & ~(1 << signum); // turn off pending bit of signal
+      } else if (p->handling_user_level_signal == 0){
+        p->handling_user_level_signal = 1;
         handle_user_signals(signum);
+        p->pending_signals = p->pending_signals & ~(1 << signum); // turn off pending bit of signal
       }
-      p->pending_signals = p->pending_signals & ~(1 << signum); // turn off pending bit of signal
     }
   }
   release(&p->lock);
@@ -728,33 +684,6 @@ wakeup(void *chan)
   }
 }
 
-// Kill the process with the given pid.
-// The victim won't exit until it tries to return
-// to user space (see usertrap() in trap.c).
-
-//TODO: remove old kill
-// int
-// kill(int pid)
-// {
-//   struct proc *p;
-
-//   for(p = proc; p < &proc[NPROC]; p++){
-//     acquire(&p->lock);
-//     if(p->pid == pid){
-//       p->killed = 1;
-//       if(p->state == SLEEPING){
-//         // Wake process from sleep().
-//         p->state = RUNNABLE;
-//       }
-//       release(&p->lock);
-//       return 0;
-//     }
-//     release(&p->lock);
-//   }
-//   return -1;
-// }
-
-
 // ADDED Q2.2.1
 int
 kill(int pid, int signum)
@@ -877,14 +806,15 @@ sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
   if (oldact) {
     kernel_oldact.sa_handler = p->signal_handlers[signum];
     kernel_oldact.sigmask = p->signal_handlers_masks[signum];
-    if(copyout(p->pagetable, oldact, (char*)&kernel_oldact, sizeof(struct sigaction)) < 0){
+
+    if(copyout(p->pagetable, (uint64)oldact, (char*)&kernel_oldact, sizeof(struct sigaction)) < 0){
       release(&p->lock);
       return -1;
     }
   }
 
   if (act) {
-    if(copyin(p->pagetable, (char*)&kernel_act, act, sizeof(struct sigaction)) < 0){
+    if(copyin(p->pagetable, (char*)&kernel_act, (uint64)act, sizeof(struct sigaction)) < 0){
       release(&p->lock);
       return -1;
     }
@@ -899,25 +829,11 @@ sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
 void
 sigret(void)
 {
-  //TODO in section 2.4
-  //This system call will be called implicitly when returning from user space after handling a signal.
-
-    //TODO remove 
-    //     struct proc *p = myproc();
-    // memmove(p->trapframe, p->trapframe_backup, sizeof(struct trapframe));
-    // p->signal_mask = p->signal_mask_backup;
-    // p->handling_signal = 0;
-
-//     2.1.5
-// The sigret system call should restore the process to its original workflow.
-// The sigret system call is responsible for:
-// 1. Restore the process original trapframe
-// 2. Restore the process original signal mask
-// 3. Turn off the flag indicates a user space signal handling for blocking incoming signals at this time.
-
-// This is the responsibility of the sigret system call, which will only restore the original
-// trapframe.
-
-//p->handling_user_level_signal = 0;
+  struct proc *p = myproc();
+  acquire(&p->lock);
+  memmove(p->trapframe, p->trapframe_backup, sizeof(struct trapframe));
+  p->signal_mask = p->signal_mask_backup;
+  p->handling_user_level_signal = 0;
+  release(&p->lock);
 }
 

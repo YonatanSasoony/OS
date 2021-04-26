@@ -105,3 +105,18 @@ uptime:
  li a7, SYS_uptime
  ecall
  ret
+.global sigprocmask
+sigprocmask:
+ li a7, SYS_sigprocmask
+ ecall
+ ret
+.global sigaction
+sigaction:
+ li a7, SYS_sigaction
+ ecall
+ ret
+.global sigret
+sigret:
+ li a7, SYS_sigret
+ ecall
+ ret

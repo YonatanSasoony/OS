@@ -91,12 +91,7 @@ usertrapret(void)
 {
   struct proc *p = myproc();
 
-  //TODO: where should we call this function?
-  // if(!p->handling_signal){ // TODO remove
-  // TODO: Notice that you should call the signal handler function after setting the Exception PC in the saved user PC.
   handle_signals(); // ADDED Q2.4
-  //}
-
 
   // we're about to switch the destination of traps from
   // kerneltrap() to usertrap(), so turn off interrupts until
