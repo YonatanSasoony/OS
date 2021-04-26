@@ -91,14 +91,13 @@ usertrapret(void)
 {
   struct proc *p = myproc();
 
-  printf("usertrapret\n");//TODO REMOVE
+ // printf("usertrapret begin\n");//TODO REMOVE
 
   // we're about to switch the destination of traps from
   // kerneltrap() to usertrap(), so turn off interrupts until
   // we're back in user space, where usertrap() is correct.
   intr_off();
-  //handle_signals(); // ADDED Q2.4 
-  //TODO HANDLE_SIGNALS ^ 
+  handle_signals(); // ADDED Q2.4 
   // send syscalls, interrupts, and exceptions to trampoline.S
   w_stvec(TRAMPOLINE + (uservec - trampoline));
 
@@ -129,6 +128,8 @@ usertrapret(void)
   // and switches to user mode with sret.
   uint64 fn = TRAMPOLINE + (userret - trampoline);
   ((void (*)(uint64,uint64))fn)(TRAPFRAME, satp);
+
+  //printf("usertrapret end\n");//TODO REMOVE
 }
 
 // interrupts and exceptions from kernel code go here via kernelvec,

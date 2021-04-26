@@ -140,8 +140,9 @@ userret:
         # usertrapret() set up sstatus and sepc.
         sret
 
-// ADDED Q2.4
+# ADDED Q2.4
 #include "syscall.h"
+
 .globl start_inject_sigret
 .globl end_inject_sigret
 start_inject_sigret:

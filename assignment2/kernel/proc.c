@@ -120,9 +120,15 @@ allocproc(void)
   return 0;
 
 found:
-printf("ALLOC PROC\n");
   p->pid = allocpid();
   p->state = USED;
+
+  // ADDED Q2
+  p->pending_signals = 0;
+  p->signal_mask = 0;
+  for(int signum = 0; signum < SIG_NUM; signum++){
+    p->signal_handlers[signum] = SIG_DFL;
+  }
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -153,7 +159,6 @@ printf("ALLOC PROC\n");
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
-
   return p;
 }
 
@@ -166,8 +171,9 @@ freeproc(struct proc *p)
   if(p->trapframe)
     kfree((void*)p->trapframe);
   p->trapframe = 0;
-  if(p->trapframe_backup) // ADDED ?
-    kfree((void*)p->trapframe_backup); //TODO ?
+  // ADDED Q2.1.2
+  if(p->trapframe_backup)
+    kfree((void*)p->trapframe_backup);
   p->trapframe_backup = 0;
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
@@ -178,6 +184,7 @@ freeproc(struct proc *p)
   p->name[0] = 0;
   p->chan = 0;
   p->killed = 0;
+  p->stopped = 0;
   p->xstate = 0;
   p->state = UNUSED;
 }
@@ -242,7 +249,6 @@ void
 userinit(void)
 {
   struct proc *p;
-  printf("USRT INIT\n");
   p = allocproc();
   initproc = p;
   // allocate one user page and copy init's instructions
@@ -258,7 +264,6 @@ userinit(void)
   p->cwd = namei("/");
 
   p->state = RUNNABLE;
-
   release(&p->lock);
 }
 
@@ -290,7 +295,6 @@ fork(void)
   int i, pid;
   struct proc *np;
   struct proc *p = myproc();
-  printf("FORK\n");
   // Allocate process.
   if((np = allocproc()) == 0) {
     return -1;
@@ -334,7 +338,6 @@ fork(void)
   }
   np->pending_signals = 0; // ADDED Q2.1.2
   release(&np->lock);
-
   return pid;
 }
 
@@ -392,7 +395,6 @@ exit(int status)
   p->state = ZOMBIE;
 
   release(&wait_lock);
-
   // Jump into the scheduler, never to return.
   sched();
   panic("zombie exit");
@@ -453,6 +455,9 @@ kill_handler()
 {
   struct proc *p = myproc();
   p->killed = 1; 
+  if (p->state == SLEEPING) {
+    p->state = RUNNABLE;
+  }
 }
 
 // ADDED Q2.3.1
@@ -481,7 +486,6 @@ stop_handler()
   release(&p->lock);
   while (p->stopped && !received_continue())
   {
-      printf("yoni\n"); //TODO REMOVE
       yield();
   }
   acquire(&p->lock);
@@ -519,39 +523,30 @@ handle_user_signals(int signum) {
 void 
 handle_signals()
 {
-  printf("@@@@@@@@@@\n"); //TODO REMOVE
   struct proc *p = myproc();
   acquire(&p->lock);
-  printf("handle_signals - lock acquired\n"); //TODO REMOVE
-  int pending_and_not_blocked = p->pending_signals & ~(p->signal_mask);
   for(int signum = 0; signum < SIG_NUM; signum++){
+    int pending_and_not_blocked = p->pending_signals & ~(p->signal_mask);
     if(pending_and_not_blocked & (1 << signum)){
       if ((p->signal_handlers[signum] == (void *)SIG_DFL && signum == SIGSTOP) || p->signal_handlers[signum] == (void *)SIGSTOP) {
-        printf("stop_handler\n");
         stop_handler();
         p->pending_signals = p->pending_signals & ~(1 << signum); // turn off pending bit of signal
       } else if ((p->signal_handlers[signum] == (void *)SIG_DFL && signum == SIGCONT) || p->signal_handlers[signum] == (void *)SIGCONT) {
-        printf("continue_handler\n");
         continue_handler();
         p->pending_signals = p->pending_signals & ~(1 << signum); // turn off pending bit of signal
       } else if (p->signal_handlers[signum] == (void *)SIG_DFL || (p->signal_handlers[signum] == (void *)SIGKILL)) { 
-        printf("kill_handler\n");
         kill_handler();
         p->pending_signals = p->pending_signals & ~(1 << signum); // turn off pending bit of signal
       } else if(p->signal_handlers[signum] == (void *)SIG_IGN ){
-        printf("IGNORING\n");
         p->pending_signals = p->pending_signals & ~(1 << signum); // turn off pending bit of signal
       } else if (p->handling_user_level_signal == 0){
         p->handling_user_level_signal = 1;
-        printf("handle_user_signals\n");
         handle_user_signals(signum);
         p->pending_signals = p->pending_signals & ~(1 << signum); // turn off pending bit of signal
       }
     }
   }
   release(&p->lock);
-  printf("handle_signals - lock released\n"); //TODO REMOVE
-
 }
 
 // Per-CPU process scheduler.
@@ -579,7 +574,6 @@ scheduler(void)
         // to release its lock and then reacquire it
         // before jumping back to us.
         p->state = RUNNING;
-       // printf("###\n###\npid: %d\nname:%s\nlock name:%s\n###\n###\n",p->pid, p->name, p->lock.name); TODO: REMOVE
         c->proc = p;
         swtch(&c->context, &p->context);
 
@@ -704,7 +698,6 @@ wakeup(void *chan)
 int
 kill(int pid, int signum)
 {
-  printf("kill syscall\n");//TODO REMOVE
   struct proc *p;
   if (signum < 0 || signum >= SIG_NUM) {
     return -1;
@@ -786,7 +779,6 @@ procdump(void)
 uint
 sigprocmask(uint sigmask)
 {
-  printf("sigprocmask\n"); // TODO REMOVE
   struct proc *p = myproc();
   uint old_mask = p->signal_mask;
   acquire(&p->lock);
@@ -806,21 +798,28 @@ sigprocmask(uint sigmask)
 int
 sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
 {
-  printf("sigaction\n"); // TODO REMOVE
+  struct proc *p = myproc();
+  struct sigaction kernel_act;
+  struct sigaction kernel_oldact;
+
   //SIGKILL and SIGSTOP cannot be modified
   if (signum < 0 || signum >= SIG_NUM || signum ==SIGKILL || signum ==SIGSTOP) {
     return -1;
   }
 
+  acquire(&p->lock);
+
+  if(act && copyin(p->pagetable, (char*)&kernel_act, (uint64)act, sizeof(struct sigaction)) < 0){
+    release(&p->lock);
+    return -1;
+  }
   //SIGKILL and SIGSTOP cannot be ignored
-  if(act && ( ((act->sigmask & (1 << SIGKILL)) != 0) || ((act->sigmask & (1 << SIGSTOP)) != 0)) ) {
+  if(act && ( ((kernel_act.sigmask & (1 << SIGKILL)) != 0) || ((kernel_act.sigmask & (1 << SIGSTOP)) != 0)) ) {
+    release(&p->lock);
     return -1;
   }
 
-  struct proc *p = myproc();
-  struct sigaction kernel_act;
-  struct sigaction kernel_oldact;
-  acquire(&p->lock);
+  
 
   if (oldact) {
     kernel_oldact.sa_handler = p->signal_handlers[signum];
@@ -833,13 +832,10 @@ sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
   }
 
   if (act) {
-    if(copyin(p->pagetable, (char*)&kernel_act, (uint64)act, sizeof(struct sigaction)) < 0){
-      release(&p->lock);
-      return -1;
-    }
     p->signal_handlers[signum] = kernel_act.sa_handler;
     p->signal_handlers_masks[signum] = kernel_act.sigmask;
   }
+
   release(&p->lock);
   return 0;
 }
@@ -848,7 +844,6 @@ sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
 void
 sigret(void)
 {
-  printf("sigret\n"); // TODO REMOVE
   struct proc *p = myproc();
   acquire(&p->lock);
   memmove(p->trapframe, p->trapframe_backup, sizeof(struct trapframe));

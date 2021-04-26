@@ -2,6 +2,8 @@
     "files.associations": {
         "param.h": "c",
         "types.h": "c",
-        "memlayout.h": "c"
-    }
+        "memlayout.h": "c",
+        "proc.h": "c"
+    },
+    "todo-tree.tree.showBadges": true
 }
