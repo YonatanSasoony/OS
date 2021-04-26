@@ -11,7 +11,6 @@
 #include "kernel/syscall.h"
 #include "kernel/memlayout.h"
 #include "kernel/riscv.h"
-#include "kernel/proc.h" // ADDED Q2.2.2
 
 // from FreeBSD.
 int

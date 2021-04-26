@@ -1,6 +1,5 @@
 #include "kernel/types.h"
 #include "kernel/stat.h"
-#include "kernel/param.h"
 #include "user/user.h"
 
 // ADDED Q2.2.2 
