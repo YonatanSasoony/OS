@@ -1,3 +1,5 @@
+#define NTHREAD 8  // ADDED Q3
+
 // Saved registers for kernel context switches.
 struct context {
   uint64 ra;
@@ -20,7 +22,7 @@ struct context {
 
 // Per-CPU state.
 struct cpu {
-  struct proc *proc;          // The process running on this cpu, or null.
+  struct thread *thread;          // The process running on this cpu, or null. //ADDED Q3
   struct context context;     // swtch() here to enter scheduler().
   int noff;                   // Depth of push_off() nesting.
   int intena;                 // Were interrupts enabled before push_off()?
@@ -88,7 +90,7 @@ struct proc {
 
   // p->lock must be held when using these:
   enum procstate state;        // Process state
-  void *chan;                  // If non-zero, sleeping on chan
+  //void *chan;                  // If non-zero, sleeping on chan // ADDED Q3
   int killed;                  // If non-zero, have been killed
   int xstate;                  // Exit status to be returned to parent's wait
   int pid;                     // Process ID
@@ -104,7 +106,7 @@ struct proc {
   // For user space signal handlers, before the process handles the signal,
   // it should backup its current trapframe.
   // When the process finishes the signal handling, it should restore its original trapframe.
-  struct trapframe *trapframe_backup;
+  //struct trapframe *trapframe_backup; // ADDED Q2 Q3
 
   int stopped; // ADDED Q2.3.1 . If non-zero, has been stopped.
   int handling_user_level_signal; // ADDED Q2.4
@@ -116,9 +118,36 @@ struct proc {
   uint64 kstack;               // Virtual address of kernel stack
   uint64 sz;                   // Size of process memory (bytes)
   pagetable_t pagetable;       // User page table
-  struct trapframe *trapframe; // data page for trampoline.S
-  struct context context;      // swtch() here to run process
+  
+  //ADDED Q3
+  // struct trapframe *trapframe; // data page for trampoline.S 
+  // struct context context;      // swtch() here to run process
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+
+  struct thread *threads[NTHREAD];  // ADDED Q3, Process's threads
+};
+
+// ADDED Q3
+enum threadstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, TERMINATED };
+//enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
+
+struct thread{
+  struct spinlock lock;
+
+  enum threadstate state;        // Threa state
+  void *chan;                  // If non-zero, sleeping on chan
+  int terminated;                  // If non-zero, have been terminated
+  int xstate;                  // Exit status to be returned to thread called to kthread_join
+  int tid;                    // Thread ID
+
+  struct proc *tproc;     // Thread's process
+  struct trapframe *trapframe_backup;
+  
+  uint64 tstack;               // Thread stack
+  struct trapframe *trapframe; // data page for trampoline.S
+  struct context context;      // swtch() here to run process
+
+  void ( *start_func ) ( );      // a pointer to the entry function, which the thread will start executing.  
 };

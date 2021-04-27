@@ -83,9 +83,20 @@ struct proc*
 myproc(void) {
   push_off();
   struct cpu *c = mycpu();
-  struct proc *p = c->proc;
+  struct proc *p = c->thread->tproc; //ADDED Q3
   pop_off();
   return p;
+}
+
+// ADDED Q3
+// Return the current struct thread *, or zero if none.
+struct thread*
+mythread(void) {
+  push_off();
+  struct cpu *c = mycpu();
+  struct thread *t = c->thread;
+  pop_off();
+  return t;
 }
 
 int
@@ -167,13 +178,15 @@ found:
 static void
 freeproc(struct proc *p)
 {
-  if(p->trapframe)
-    kfree((void*)p->trapframe);
-  p->trapframe = 0;
-  // ADDED Q2.1.2
-  if(p->trapframe_backup)
-    kfree((void*)p->trapframe_backup);
-  p->trapframe_backup = 0;
+  //ADDED Q3
+ // if(p->trapframe)
+  //  kfree((void*)p->trapframe);
+ // p->trapframe = 0;
+ // // ADDED Q2.1.2
+ // if(p->trapframe_backup)
+  //  kfree((void*)p->trapframe_backup);
+//  p->trapframe_backup = 0;
+
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
   p->pagetable = 0;
@@ -181,7 +194,7 @@ freeproc(struct proc *p)
   p->pid = 0;
   p->parent = 0;
   p->name[0] = 0;
-  p->chan = 0;
+ // p->chan = 0; ADDED Q3
   p->killed = 0;
   p->stopped = 0;
   p->xstate = 0;
@@ -555,32 +568,38 @@ handle_signals()
 //  - swtch to start running that process.
 //  - eventually that process transfers control
 //    via swtch back to the scheduler.
+ // ADDED Q3
 void
 scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
-  
-  c->proc = 0;
+ 
+  c->thread = 0;
+
   for(;;){
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
 
     for(p = proc; p < &proc[NPROC]; p++) {
-      acquire(&p->lock);
-      if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
+      //acquire(&p->lock); TODO? add p locks?
+      for (struct thread *t = p->threads; t < &p->threads[NTHREAD]; t++) {
+        acquire(&t->lock);
+        if(t->state == RUNNABLE) {
+          // Switch to chosen process.  It is the process's job
+          // to release its lock and then reacquire it
+          // before jumping back to us.
+          t->state = RUNNING;
+          c->thread = t;
+          swtch(&c->context, &t->context);
 
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
+          // Process is done running for now.
+          // It should have changed its p->state before coming back.
+          c->thread = 0;
+        }
+        release(&t->lock);
       }
-      release(&p->lock);
+      //release(&p->lock); TODO? add p locks?
     }
   }
 }
@@ -592,35 +611,38 @@ scheduler(void)
 // be proc->intena and proc->noff, but that would
 // break in the few places where a lock is held but
 // there's no process.
+
+// ADDED Q3
 void
 sched(void)
 {
   int intena;
-  struct proc *p = myproc();
+  struct thread *t = mythread();
 
-  if(!holding(&p->lock))
-    panic("sched p->lock");
+  if(!holding(&t->lock))
+    panic("sched t->lock");
   if(mycpu()->noff != 1)
     panic("sched locks");
-  if(p->state == RUNNING)
+  if(t->state == RUNNING)
     panic("sched running");
   if(intr_get())
     panic("sched interruptible");
 
   intena = mycpu()->intena;
-  swtch(&p->context, &mycpu()->context);
+  swtch(&t->context, &mycpu()->context);
   mycpu()->intena = intena;
 }
 
+// ADDED Q3
 // Give up the CPU for one scheduling round.
 void
 yield(void)
 {
-  struct proc *p = myproc();
-  acquire(&p->lock);
-  p->state = RUNNABLE;
+  struct thread *t = mythread();
+  acquire(&t->lock);
+  t->state = RUNNABLE;
   sched();
-  release(&p->lock);
+  release(&t->lock);
 }
 
 // A fork child's very first scheduling by scheduler()
@@ -644,51 +666,56 @@ forkret(void)
   usertrapret();
 }
 
+// ADDED Q3
 // Atomically release lock and sleep on chan.
 // Reacquires lock when awakened.
 void
 sleep(void *chan, struct spinlock *lk)
 {
-  struct proc *p = myproc();
+  struct thread *t = mythread();
   
-  // Must acquire p->lock in order to
-  // change p->state and then call sched.
-  // Once we hold p->lock, we can be
+  // Must acquire t->lock in order to
+  // change t->state and then call sched.
+  // Once we hold t->lock, we can be
   // guaranteed that we won't miss any wakeup
-  // (wakeup locks p->lock),
+  // (wakeup locks t->lock),
   // so it's okay to release lk.
 
-  acquire(&p->lock);  //DOC: sleeplock1
+  acquire(&t->lock);  //DOC: sleeplock1
   release(lk);
 
   // Go to sleep.
-  p->chan = chan;
-  p->state = SLEEPING;
+  t->chan = chan;
+  t->state = SLEEPING;
 
   sched();
 
   // Tidy up.
-  p->chan = 0;
+  t->chan = 0;
 
   // Reacquire original lock.
-  release(&p->lock);
+  release(&t->lock);
   acquire(lk);
 }
 
-// Wake up all processes sleeping on chan.
+// Wake up all threads sleeping on chan.
 // Must be called without any p->lock.
 void
 wakeup(void *chan)
 {
   struct proc *p;
-
+  struct thread *t;
   for(p = proc; p < &proc[NPROC]; p++) {
+    // acquire(&p->lock); TODO?
     if(p != myproc()){
-      acquire(&p->lock);
-      if(p->state == SLEEPING && p->chan == chan) {
-        p->state = RUNNABLE;
+      for (t = p->threads; t < &p->threads[NTHREAD]; t++) {
+        acquire(&t->lock);
+        if (t->state == SLEEPING && t->chan == chan) {
+          t->state = RUNNABLE;
+        }
+        release(&t->lock);
       }
-      release(&p->lock);
+      // release(&p->lock); TODO?
     }
   }
 }
@@ -840,14 +867,17 @@ sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
 }
 
 // ADDED Q2.1.5
+// ADDED Q3
 void
 sigret(void)
 {
-  struct proc *p = myproc();
-  acquire(&p->lock);
-  memmove(p->trapframe, p->trapframe_backup, sizeof(struct trapframe));
-  p->signal_mask = p->signal_mask_backup;
-  p->handling_user_level_signal = 0;
-  release(&p->lock);
+  struct thread *t = mythread();
+  acquire(&t->lock);
+  memmove(t->trapframe, t->trapframe_backup, sizeof(struct trapframe));
+  acquire(&t->tproc->lock); // TODO: order of locking?
+  t->tproc->signal_mask = t->tproc->signal_mask_backup;
+  t->tproc->handling_user_level_signal = 0;
+  release(&t->tproc->lock);
+  release(&t->lock);
 }
 
