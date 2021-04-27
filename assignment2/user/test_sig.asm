@@ -17,7 +17,7 @@ void t_handler(int signum){
     test = 1;
    6:	4785                	li	a5,1
    8:	00001717          	auipc	a4,0x1
-   c:	10f72423          	sw	a5,264(a4) # 1110 <test>
+   c:	10f72023          	sw	a5,256(a4) # 1108 <test>
 }
   10:	6422                	ld	s0,8(sp)
   12:	0141                	addi	sp,sp,16
@@ -32,7 +32,7 @@ void test_handler(int signum){
     test = 1;
   1c:	4785                	li	a5,1
   1e:	00001717          	auipc	a4,0x1
-  22:	0ef72923          	sw	a5,242(a4) # 1110 <test>
+  22:	0ef72523          	sw	a5,234(a4) # 1108 <test>
 }
   26:	6422                	ld	s0,8(sp)
   28:	0141                	addi	sp,sp,16
@@ -141,7 +141,7 @@ int main(int argc, char **argv)
 
     test = 0;
  116:	00001797          	auipc	a5,0x1
- 11a:	fe07ad23          	sw	zero,-6(a5) # 1110 <test>
+ 11a:	fe07a923          	sw	zero,-14(a5) # 1108 <test>
     
     struct sigaction act;
     act.sa_handler = (void(*)(int)) test_handler;
@@ -187,7 +187,7 @@ int main(int argc, char **argv)
 
     act.sigmask = (1 << SIGKILL) | (1 << SIGSTOP);
  17a:	000207b7          	lui	a5,0x20
- 17e:	20078793          	addi	a5,a5,512 # 20200 <__global_pointer$+0x1e8f7>
+ 17e:	20078793          	addi	a5,a5,512 # 20200 <__global_pointer$+0x1e8ff>
  182:	fcf42c23          	sw	a5,-40(s0)
     if(sigaction(SIGSTOP, &act, 0) != -1){
  186:	4601                	li	a2,0
@@ -209,7 +209,7 @@ int main(int argc, char **argv)
     uint mask = (1 << SIGKILL) | (1 << SIGSTOP);
     if (sigprocmask(mask) != -1){
  1ac:	00020537          	lui	a0,0x20
- 1b0:	20050513          	addi	a0,a0,512 # 20200 <__global_pointer$+0x1e8f7>
+ 1b0:	20050513          	addi	a0,a0,512 # 20200 <__global_pointer$+0x1e8ff>
  1b4:	00000097          	auipc	ra,0x0
  1b8:	650080e7          	jalr	1616(ra) # 804 <sigprocmask>
  1bc:	2501                	sext.w	a0,a0
@@ -277,7 +277,7 @@ int main(int argc, char **argv)
  246:	5b2080e7          	jalr	1458(ra) # 7f4 <sleep>
         if(test != 1){
  24a:	00001717          	auipc	a4,0x1
- 24e:	ec672703          	lw	a4,-314(a4) # 1110 <test>
+ 24e:	ebe72703          	lw	a4,-322(a4) # 1108 <test>
  252:	4785                	li	a5,1
  254:	08f70163          	beq	a4,a5,2d6 <main+0x24a>
             printf("test7 failed - test_handler did not invoke\n");
@@ -340,7 +340,7 @@ int main(int argc, char **argv)
 
     test = 0;
  2f8:	00001797          	auipc	a5,0x1
- 2fc:	e007ac23          	sw	zero,-488(a5) # 1110 <test>
+ 2fc:	e007a823          	sw	zero,-496(a5) # 1108 <test>
     sigprocmask((1 << 14));
  300:	6511                	lui	a0,0x4
  302:	00000097          	auipc	ra,0x0
@@ -364,7 +364,7 @@ int main(int argc, char **argv)
  334:	4c4080e7          	jalr	1220(ra) # 7f4 <sleep>
         if(test == 1){
  338:	00001717          	auipc	a4,0x1
- 33c:	dd872703          	lw	a4,-552(a4) # 1110 <test>
+ 33c:	dd072703          	lw	a4,-560(a4) # 1108 <test>
  340:	4785                	li	a5,1
  342:	00f70b63          	beq	a4,a5,358 <main+0x2cc>
             printf("test8 failed - test_handler did not blocked by the mask\n");
@@ -390,7 +390,7 @@ int main(int argc, char **argv)
  376:	782080e7          	jalr	1922(ra) # af4 <printf>
     }
 
-    printf("in order to pass tests 9,10,11 you should get a passed messages\n");
+    printf("in order to pass tests 9-12 you should get a passed messages\n");
  37a:	00001517          	auipc	a0,0x1
  37e:	c9650513          	addi	a0,a0,-874 # 1010 <malloc+0x45e>
  382:	00000097          	auipc	ra,0x0
@@ -409,7 +409,7 @@ int main(int argc, char **argv)
  39c:	45c080e7          	jalr	1116(ra) # 7f4 <sleep>
         printf("test9 - passed\n");
  3a0:	00001517          	auipc	a0,0x1
- 3a4:	cb850513          	addi	a0,a0,-840 # 1058 <malloc+0x4a6>
+ 3a4:	cb050513          	addi	a0,a0,-848 # 1050 <malloc+0x49e>
  3a8:	00000097          	auipc	ra,0x0
  3ac:	74c080e7          	jalr	1868(ra) # af4 <printf>
         exit(0);
@@ -461,7 +461,7 @@ int main(int argc, char **argv)
  40a:	366080e7          	jalr	870(ra) # 76c <wait>
         printf("test 10 - passed\n");
  40e:	00001517          	auipc	a0,0x1
- 412:	c5a50513          	addi	a0,a0,-934 # 1068 <malloc+0x4b6>
+ 412:	c5250513          	addi	a0,a0,-942 # 1060 <malloc+0x4ae>
  416:	00000097          	auipc	ra,0x0
  41a:	6de080e7          	jalr	1758(ra) # af4 <printf>
     }
@@ -491,7 +491,7 @@ int main(int argc, char **argv)
  444:	32c080e7          	jalr	812(ra) # 76c <wait>
         printf("test 11 - passed\n");
  448:	00001517          	auipc	a0,0x1
- 44c:	c3850513          	addi	a0,a0,-968 # 1080 <malloc+0x4ce>
+ 44c:	c3050513          	addi	a0,a0,-976 # 1078 <malloc+0x4c6>
  450:	00000097          	auipc	ra,0x0
  454:	6a4080e7          	jalr	1700(ra) # af4 <printf>
     }
@@ -526,7 +526,7 @@ int main(int argc, char **argv)
  49e:	02e78d63          	beq	a5,a4,4d8 <main+0x44c>
             printf("test12A faild - child didn't inherit parent's mask\n");
  4a2:	00001517          	auipc	a0,0x1
- 4a6:	bf650513          	addi	a0,a0,-1034 # 1098 <malloc+0x4e6>
+ 4a6:	bee50513          	addi	a0,a0,-1042 # 1090 <malloc+0x4de>
  4aa:	00000097          	auipc	ra,0x0
  4ae:	64a080e7          	jalr	1610(ra) # af4 <printf>
         }else{
@@ -539,7 +539,7 @@ int main(int argc, char **argv)
  4ba:	2de080e7          	jalr	734(ra) # 794 <kill>
         printf("test12B passed\n");
  4be:	00001517          	auipc	a0,0x1
- 4c2:	c2250513          	addi	a0,a0,-990 # 10e0 <malloc+0x52e>
+ 4c2:	c1a50513          	addi	a0,a0,-998 # 10d8 <malloc+0x526>
  4c6:	00000097          	auipc	ra,0x0
  4ca:	62e080e7          	jalr	1582(ra) # af4 <printf>
     }else{
@@ -552,7 +552,7 @@ int main(int argc, char **argv)
  4d4:	294080e7          	jalr	660(ra) # 764 <exit>
             printf("test12A passed\n");
  4d8:	00001517          	auipc	a0,0x1
- 4dc:	bf850513          	addi	a0,a0,-1032 # 10d0 <malloc+0x51e>
+ 4dc:	bf050513          	addi	a0,a0,-1040 # 10c8 <malloc+0x516>
  4e0:	00000097          	auipc	ra,0x0
  4e4:	614080e7          	jalr	1556(ra) # af4 <printf>
  4e8:	b7e9                	j	4b2 <main+0x426>
@@ -891,7 +891,7 @@ memmove(void *vdst, const void *vsrc, int n)
  6ca:	0585                	addi	a1,a1,1
  6cc:	0705                	addi	a4,a4,1
  6ce:	fff5c683          	lbu	a3,-1(a1)
- 6d2:	fed70fa3          	sb	a3,-1(a4) # 3ffffff <__global_pointer$+0x3ffe6f6>
+ 6d2:	fed70fa3          	sb	a3,-1(a4) # 3ffffff <__global_pointer$+0x3ffe6fe>
     while(n-- > 0)
  6d6:	fee79ae3          	bne	a5,a4,6ca <memmove+0x18>
     src += n;
@@ -1285,7 +1285,7 @@ printint(int fd, int xx, int base, int sgn)
     buf[i++] = digits[x % base];
  85e:	2601                	sext.w	a2,a2
  860:	00001517          	auipc	a0,0x1
- 864:	89850513          	addi	a0,a0,-1896 # 10f8 <digits>
+ 864:	89050513          	addi	a0,a0,-1904 # 10f0 <digits>
  868:	883a                	mv	a6,a4
  86a:	2705                	addiw	a4,a4,1
  86c:	02c5f7bb          	remuw	a5,a1,a2
@@ -1395,7 +1395,7 @@ vprintf(int fd, const char *fmt, va_list ap)
  928:	07000d93          	li	s11,112
     putc(fd, digits[x >> (sizeof(uint64) * 8 - 4)]);
  92c:	00000b97          	auipc	s7,0x0
- 930:	7ccb8b93          	addi	s7,s7,1996 # 10f8 <digits>
+ 930:	7c4b8b93          	addi	s7,s7,1988 # 10f0 <digits>
  934:	a839                	j	952 <vprintf+0x6a>
         putc(fd, c);
  936:	85ca                	mv	a1,s2
@@ -1549,7 +1549,7 @@ vprintf(int fd, const char *fmt, va_list ap)
  a6a:	bdf9                	j	948 <vprintf+0x60>
           s = "(null)";
  a6c:	00000917          	auipc	s2,0x0
- a70:	68490913          	addi	s2,s2,1668 # 10f0 <malloc+0x53e>
+ a70:	67c90913          	addi	s2,s2,1660 # 10e8 <malloc+0x536>
         while(*s != 0){
  a74:	02800593          	li	a1,40
  a78:	bff1                	j	a54 <vprintf+0x16c>
@@ -1672,7 +1672,7 @@ free(void *ap)
  b30:	ff050693          	addi	a3,a0,-16
   for(p = freep; !(bp > p && bp < p->s.ptr); p = p->s.ptr)
  b34:	00000797          	auipc	a5,0x0
- b38:	5e47b783          	ld	a5,1508(a5) # 1118 <freep>
+ b38:	5dc7b783          	ld	a5,1500(a5) # 1110 <freep>
  b3c:	a805                	j	b6c <free+0x42>
     if(p >= p->s.ptr && (bp > p || bp < p->s.ptr))
       break;
@@ -1729,7 +1729,7 @@ free(void *ap)
  ba2:	e394                	sd	a3,0(a5)
   freep = p;
  ba4:	00000717          	auipc	a4,0x0
- ba8:	56f73a23          	sd	a5,1396(a4) # 1118 <freep>
+ ba8:	56f73623          	sd	a5,1388(a4) # 1110 <freep>
 }
  bac:	6422                	ld	s0,8(sp)
  bae:	0141                	addi	sp,sp,16
@@ -1764,7 +1764,7 @@ malloc(uint nbytes)
  bd4:	0485                	addi	s1,s1,1
   if((prevp = freep) == 0){
  bd6:	00000517          	auipc	a0,0x0
- bda:	54253503          	ld	a0,1346(a0) # 1118 <freep>
+ bda:	53a53503          	ld	a0,1338(a0) # 1110 <freep>
  bde:	c515                	beqz	a0,c0a <malloc+0x58>
     base.s.ptr = freep = prevp = &base;
     base.s.size = 0;
@@ -1789,15 +1789,15 @@ malloc(uint nbytes)
     }
     if(p == freep)
  bfe:	00000917          	auipc	s2,0x0
- c02:	51a90913          	addi	s2,s2,1306 # 1118 <freep>
+ c02:	51290913          	addi	s2,s2,1298 # 1110 <freep>
   if(p == (char*)-1)
  c06:	5afd                	li	s5,-1
  c08:	a895                	j	c7c <malloc+0xca>
     base.s.ptr = freep = prevp = &base;
  c0a:	00000797          	auipc	a5,0x0
- c0e:	51678793          	addi	a5,a5,1302 # 1120 <base>
+ c0e:	50e78793          	addi	a5,a5,1294 # 1118 <base>
  c12:	00000717          	auipc	a4,0x0
- c16:	50f73323          	sd	a5,1286(a4) # 1118 <freep>
+ c16:	4ef73f23          	sd	a5,1278(a4) # 1110 <freep>
  c1a:	e39c                	sd	a5,0(a5)
     base.s.size = 0;
  c1c:	0007a423          	sw	zero,8(a5)
@@ -1816,7 +1816,7 @@ malloc(uint nbytes)
  c36:	0137a423          	sw	s3,8(a5)
       freep = prevp;
  c3a:	00000717          	auipc	a4,0x0
- c3e:	4ca73f23          	sd	a0,1246(a4) # 1118 <freep>
+ c3e:	4ca73b23          	sd	a0,1238(a4) # 1110 <freep>
       return (void*)(p + 1);
  c42:	01078513          	addi	a0,a5,16
       if((p = morecore(nunits)) == 0)

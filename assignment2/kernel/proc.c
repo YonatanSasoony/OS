@@ -140,7 +140,6 @@ found:
   // ADDED Q2
   // Allocate a trapframe_backup page.
   if((p->trapframe_backup = (struct trapframe *)kalloc()) == 0){
-    printf("FAILED ALLOC TRAPFRAME BACKUP\n");//TODO REMOVE
     freeproc(p);
     release(&p->lock);
     return 0;
