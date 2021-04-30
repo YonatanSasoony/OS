@@ -82,7 +82,7 @@ struct trapframe {
   /* 280 */ uint64 t6;
 };
 
-enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
+enum procstate { UNUSED, USED, ZOMBIE };
 
 // Per-process state
 struct proc {
@@ -106,7 +106,7 @@ struct proc {
   // For user space signal handlers, before the process handles the signal,
   // it should backup its current trapframe.
   // When the process finishes the signal handling, it should restore its original trapframe.
-  //struct trapframe *trapframe_backup; // ADDED Q2 Q3
+  struct trapframe *trapframe_backup; // ADDED Q2
 
   int stopped; // ADDED Q2.3.1 . If non-zero, has been stopped.
   int handling_user_level_signal; // ADDED Q2.4
@@ -115,7 +115,7 @@ struct proc {
   struct proc *parent;         // Parent process
 
   // these are private to the process, so p->lock need not be held.
-  uint64 kstack;               // Virtual address of kernel stack
+  //uint64 kstack;               // Virtual address of kernel stack
   uint64 sz;                   // Size of process memory (bytes)
   pagetable_t pagetable;       // User page table
   
@@ -126,12 +126,11 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
 
-  struct thread *threads[NTHREAD];  // ADDED Q3, Process's threads
+  struct thread threads[NTHREAD];  // ADDED Q3, Process's threads
 };
 
 // ADDED Q3
-enum threadstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, TERMINATED };
-//enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
+enum threadstate { UNUSED_T, USED_T, SLEEPING, RUNNABLE, RUNNING, ZOMBIE_T };
 
 struct thread{
   struct spinlock lock;
@@ -142,12 +141,13 @@ struct thread{
   int xstate;                  // Exit status to be returned to thread called to kthread_join
   int tid;                    // Thread ID
 
-  struct proc *tproc;     // Thread's process
-  struct trapframe *trapframe_backup;
+  struct proc *proc;     // Thread's process
   
-  uint64 tstack;               // Thread stack
-  struct trapframe *trapframe; // data page for trampoline.S
+  
+  uint64 kstack;               // Thread stack
+  struct trapframe *trapframe; // data page for trampoline.S // TODO:kalloc this 
   struct context context;      // swtch() here to run process
 
-  void ( *start_func ) ( );      // a pointer to the entry function, which the thread will start executing.  
+ // void ( *start_func ) ( );      // a pointer to the entry function, which the thread will start executing.  
+ // TODO: put start func in trapframe
 };

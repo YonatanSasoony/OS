@@ -46,9 +46,9 @@ usertrap(void)
   w_stvec((uint64)kernelvec);
 
   struct proc *p = myproc();
-  
+  struct thread *t = mythread(); // ADDED Q3
   // save user program counter.
-  p->trapframe->epc = r_sepc();
+  t->trapframe->epc = r_sepc();
   
   if(r_scause() == 8){
     // system call
@@ -56,9 +56,14 @@ usertrap(void)
     if(p->killed)
       exit(-1);
 
+    // ADDED Q3
+    if (t->terminated) {
+      kthread_exit(-1);
+    }
+
     // sepc points to the ecall instruction,
     // but we want to return to the next instruction.
-    p->trapframe->epc += 4;
+    t->trapframe->epc += 4;
 
     // an interrupt will change sstatus &c registers,
     // so don't enable until done with those registers.
@@ -89,6 +94,7 @@ usertrap(void)
 void
 usertrapret(void)
 {
+  struct thread *t = mythread(); // ADDED Q3
   struct proc *p = myproc();
 
   // we're about to switch the destination of traps from
@@ -101,10 +107,10 @@ usertrapret(void)
 
   // set up trapframe values that uservec will need when
   // the process next re-enters the kernel.
-  p->trapframe->kernel_satp = r_satp();         // kernel page table
-  p->trapframe->kernel_sp = p->kstack + PGSIZE; // process's kernel stack
-  p->trapframe->kernel_trap = (uint64)usertrap;
-  p->trapframe->kernel_hartid = r_tp();         // hartid for cpuid()
+  t->trapframe->kernel_satp = r_satp();         // kernel page table
+  t->trapframe->kernel_sp = t->kstack + PGSIZE; // thread's kernel stack
+  t->trapframe->kernel_trap = (uint64)usertrap;
+  t->trapframe->kernel_hartid = r_tp();         // hartid for cpuid()
 
   // set up the registers that trampoline.S's sret will use
   // to get to user space.
@@ -116,7 +122,7 @@ usertrapret(void)
   w_sstatus(x);
 
   // set S Exception Program Counter to the saved user pc.
-  w_sepc(p->trapframe->epc);
+  w_sepc(t->trapframe->epc);
 
   // tell trampoline.S the user page table to switch to.
   uint64 satp = MAKE_SATP(p->pagetable);
@@ -149,8 +155,9 @@ kerneltrap()
     panic("kerneltrap");
   }
 
+  struct thread *t = mythread();
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING)
+  if(which_dev == 2 && t != 0 && t->state == RUNNING)
     yield();
 
   // the yield() may have caused some traps to occur,
