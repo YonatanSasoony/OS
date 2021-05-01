@@ -120,3 +120,23 @@ sigret:
  li a7, SYS_sigret
  ecall
  ret
+.global kthread_create
+kthread_create:
+ li a7, SYS_kthread_create
+ ecall
+ ret
+.global kthread_id
+kthread_id:
+ li a7, SYS_kthread_id
+ ecall
+ ret
+.global kthread_exit
+kthread_exit:
+ li a7, SYS_kthread_exit
+ ecall
+ ret
+.global kthread_join
+kthread_join:
+ li a7, SYS_kthread_join
+ ecall
+ ret

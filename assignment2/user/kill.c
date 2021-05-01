@@ -8,7 +8,7 @@ main(int argc, char **argv)
 {
   int i;
 
-  if(argc < 3 && argc % 2 == 0){ // must have even parameters, including the 'kill' - odd
+  if(argc < 3 || argc % 2 == 0){ // must have even parameters, including the 'kill' - odd
     fprintf(2, "usage: kill pid1 signal1 pid2 signal2 ... pidN signalN \n");
     exit(1);
   }

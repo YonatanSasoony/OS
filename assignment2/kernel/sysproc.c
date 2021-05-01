@@ -141,3 +141,52 @@ sys_sigret(void)
   sigret();
   return 0;
 }
+
+// ADDED Q3.2
+uint64
+sys_kthread_create(void)
+{
+  void (*start_func)();
+  void *stack;
+
+  if(argaddr(0, (uint64 *)&start_func) < 0)
+    return -1;
+
+  if(argaddr(1, (uint64 *)&stack) < 0)
+    return -1;
+
+  return kthread_create(start_func, stack);
+}
+
+uint64
+sys_kthread_id(void)
+{
+  return mythread()->tid;
+}
+
+uint64
+sys_kthread_exit(void)
+{
+  int status;
+
+  if(argint(0, &status) < 0)
+    return -1;
+
+  kthread_exit(status);
+  return 0; //TODO: retval?
+}
+
+uint64
+sys_kthread_join(void)
+{
+  int thread_id;
+  int *status;
+
+  if(argint(0, &thread_id) < 0)
+    return -1;
+
+  if(argaddr(1, (uint64 *)&status) < 0)
+    return -1;
+
+  return kthread_join(thread_id, status);
+}

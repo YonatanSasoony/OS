@@ -99,6 +99,7 @@ int             kill(int, int); // ADDED Q2.2.1
 struct cpu*     mycpu(void);
 struct cpu*     getmycpu(void);
 struct proc*    myproc();
+struct thread*  mythread(); // ADDED Q3
 void            procinit(void);
 void            scheduler(void) __attribute__((noreturn));
 void            sched(void);
@@ -115,6 +116,10 @@ uint            sigprocmask(uint); // ADDED Q2.1.3
 int             sigaction(int, const struct sigaction *, struct sigaction *); // ADDED Q2.1.4
 void            sigret(void); // ADDED Q2.1.5
 void            handle_signals(void); // ADDED Q2.4
+int             kthread_create(void (*)(), void*);
+int             kthread_id();
+void            kthread_exit(int);
+int             kthread_join(int, int*);
 
 
 // swtch.S

@@ -20,7 +20,7 @@ exec(char *path, char **argv)
   struct proghdr ph;
   pagetable_t pagetable = 0, oldpagetable;
   struct proc *p = myproc();
-
+  struct thread *t = mythread();
   begin_op();
 
   if((ip = namei(path)) == 0){
@@ -28,6 +28,21 @@ exec(char *path, char **argv)
     return -1;
   }
   ilock(ip);
+
+  // ADDED Q3
+  acquire(&p->lock); //TOOD: decide where to put this block
+   for(struct thread *t_temp = p->threads; t_temp < &p->threads[NTHREAD]; t_temp++){ 
+    if(t_temp->tid != t->tid){
+      acquire(&t_temp->lock);
+      t_temp->terminated = 1;
+      if(t_temp->state == SLEEPING){
+        t_temp->state = RUNNABLE;
+      }
+      release(&t_temp->lock);
+      kthread_join(t_temp->tid, 0);
+    }
+  }
+  release(&p->lock);
 
   // Check ELF header
   if(readi(ip, 0, (uint64)&elf, 0, sizeof(elf)) != sizeof(elf))
@@ -100,7 +115,7 @@ exec(char *path, char **argv)
   // arguments to user main(argc, argv)
   // argc is returned via the system call return
   // value, which goes in a0.
-  p->trapframe->a1 = sp;
+  t->trapframe->a1 = sp;
 
   // Save program name for debugging.
   for(last=s=path; *s; s++)
@@ -112,17 +127,17 @@ exec(char *path, char **argv)
   oldpagetable = p->pagetable;
   p->pagetable = pagetable;
   p->sz = sz;
-  p->trapframe->epc = elf.entry;  // initial program counter = main
-  p->trapframe->sp = sp; // initial stack pointer
+  t->trapframe->epc = elf.entry;  // initial program counter = main
+  t->trapframe->sp = sp; // initial stack pointer
   proc_freepagetable(oldpagetable, oldsz);
 
   // ADDED Q2.1.2
   for(int signum = 0; signum < SIG_NUM; signum++){
-   p->signal_handlers_masks[signum] = 0;
-   if(p->signal_handlers[signum] != (void *)SIG_IGN) {
-     p->signal_handlers[signum] = SIG_DFL;
-   }
- }
+    p->signal_handlers_masks[signum] = 0;
+    if(p->signal_handlers[signum] != (void *)SIG_IGN) {
+      p->signal_handlers[signum] = SIG_DFL;
+    }
+  }
 
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 

@@ -64,4 +64,5 @@
 //   ...
 //   TRAPFRAME (p->trapframe, used by the trampoline)
 //   TRAMPOLINE (the same page as in the kernel)
-#define TRAPFRAME (TRAMPOLINE - PGSIZE)
+// ADDED Q3
+#define TRAPFRAME(i) ((TRAMPOLINE - PGSIZE) + (i * sizeof(struct trapframe)))

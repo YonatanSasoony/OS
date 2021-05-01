@@ -20,3 +20,5 @@
 #define SIGCONT 19
 
 #define SIG_NUM 32
+
+#define MAX_STACK_SIZE 4000 // ADDED Q3

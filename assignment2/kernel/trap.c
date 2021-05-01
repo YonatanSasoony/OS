@@ -81,6 +81,12 @@ usertrap(void)
   if(p->killed)
     exit(-1);
 
+  // ADDED Q3
+  if (t->terminated) {
+    kthread_exit(-1);
+  }
+
+
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2)
     yield();
@@ -131,7 +137,7 @@ usertrapret(void)
   // switches to the user page table, restores user registers,
   // and switches to user mode with sret.
   uint64 fn = TRAMPOLINE + (userret - trampoline);
-  ((void (*)(uint64,uint64))fn)(TRAPFRAME, satp);
+  ((void (*)(uint64,uint64))fn)(TRAPFRAME(t->index), satp);
 }
 
 // interrupts and exceptions from kernel code go here via kernelvec,

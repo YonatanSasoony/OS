@@ -28,6 +28,12 @@ uint sigprocmask(uint); // ADDED Q2.1.3
 int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact); // ADDED Q2.1.4
 void sigret(void); // ADDED Q2.1.5
 
+// ADDED Q3.2
+int kthread_create (void (*)(), void *);
+int kthread_id(void);
+void kthread_exit(int satus);
+int kthread_join(int, int*);
+
 // ulib.c
 int stat(const char*, struct stat*);
 char* strcpy(char*, const char*);

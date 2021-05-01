@@ -33,6 +33,8 @@ extern void* end_inject_sigret; // ADDED Q2.4
 // must be acquired before any p->lock.
 struct spinlock wait_lock;
 
+struct spinlock join_lock; // ADDED Q3.2
+
 // Allocate a page for each process's kernel stack.
 // Map it high in memory, followed by an invalid
 // guard page.
@@ -60,8 +62,8 @@ procinit(void)
   for(p = proc; p < &proc[NPROC]; p++) {
     initlock(&p->lock, "proc");
     //p->kstack = KSTACK((int) (p - proc)); ADDED Q3
-    for (int t = 0; t < NTHREAD; t++) {
-      initlock(&p->threads[t].lock, "thread");
+    for (struct thread *t = p->threads; t < &p->threads[NTHREAD]; t++) {
+      initlock(&t->lock, "thread");
     }
   }
 }
@@ -165,7 +167,7 @@ found:
 
   // Allocate a trapframe page.
   // ADDED Q3
-  if((t->trapframe = (struct trapframe *)kalloc()) == 0){
+  if((p->trapframes = (struct trapframe *)kalloc()) == 0){
     freeproc(p);
     release(&p->lock);
     return 0;
@@ -173,7 +175,9 @@ found:
 
   // ADDED Q3
   t->tid = alloctid();
+  t->index = 0;
   t->state = USED_T;
+  t->trapframe = &p->trapframes[t->index];
   t->proc = p;
 
   // ADDED Q2 
@@ -208,8 +212,6 @@ found:
   t->context.sp = t->kstack + PGSIZE;
   return p;
 }
-
-// TODO: allocthread, etc
 
 // ADDED Q3
 static void
@@ -258,8 +260,8 @@ freeproc(struct proc *p)
   p->state = UNUSED;
 
   // ADDED Q3
-  for (int t = 0; t< NTHREAD; t++) {
-    freethread(&p->threads[t]);
+  for (struct thread *t = p->threads; t < &p->threads[NTHREAD]; t++) {
+    freethread(t);
   }
 }
 
@@ -286,7 +288,7 @@ proc_pagetable(struct proc *p)
   }
 
   // map the trapframe just below TRAMPOLINE, for trampoline.S.
-  if(mappages(pagetable, TRAPFRAME, PGSIZE,
+  if(mappages(pagetable, TRAPFRAME(0), PGSIZE,
               (uint64)(p->threads[0].trapframe), PTE_R | PTE_W) < 0){
     uvmunmap(pagetable, TRAMPOLINE, 1, 0);
     uvmfree(pagetable, 0);
@@ -302,7 +304,8 @@ void
 proc_freepagetable(pagetable_t pagetable, uint64 sz)
 {
   uvmunmap(pagetable, TRAMPOLINE, 1, 0);
-  uvmunmap(pagetable, TRAPFRAME, 1, 0);
+  uvmunmap(pagetable, TRAPFRAME(0), 1, 0);
+  // TODO: add trapframe_backup?
   uvmfree(pagetable, sz);
 }
 
@@ -478,15 +481,15 @@ exit(int status)
   p->state = ZOMBIE;
 
   // ADDED Q3
-  for (int t = 0; t < NTHREAD; t++) {
-    if (p->threads[t].tid != mythread()->tid) {
-      acquire(&p->threads[t].lock);
-      p->threads[t].terminated = 1;
-      if (p->threads[t].state == SLEEPING) {
-          p->threads[t].state = RUNNABLE;
+  for (struct thread *t = p->threads; t < &p->threads[NTHREAD]; t++) {
+    if (t->tid != mythread()->tid) {
+      acquire(&t->lock);
+      t->terminated = 1;
+      if (t->state == SLEEPING) {
+          t->state = RUNNABLE;
       }
-      release(&p->threads[t].lock);
-      kthread_join(p->threads[t].tid, 0);
+      release(&t->lock);
+      kthread_join(t->tid, 0);
     }
   }
 
@@ -553,14 +556,18 @@ wait(uint64 addr)
 }
 
 // ADDED Q2.3.1
+// ADDED Q3
 void
-kill_handler()
+kill_handler() //TODO: update to thread??
 {
   struct proc *p = myproc();
   p->killed = 1; 
-  if (p->state == SLEEPING) {
-    p->state = RUNNABLE;
+  for (struct thread *t = p->threads; t < &p->threads[NTHREAD]; t++) {
+    if (t->state == SLEEPING) {
+      t->state = RUNNABLE;
+    }
   }
+
 }
 
 // ADDED Q2.3.1
@@ -797,8 +804,8 @@ wakeup(void *chan)
 {
   struct proc *p;
   for(p = proc; p < &proc[NPROC]; p++) {
-    if(p != myproc()){
-      for (struct thread *t = p->threads; t < &p->threads[NTHREAD]; t++) {
+    for (struct thread *t = p->threads; t < &p->threads[NTHREAD]; t++) {
+      if(t != mythread()){
         acquire(&t->lock);
         if (t->state == SLEEPING && t->chan == chan) {
           t->state = RUNNABLE;
@@ -972,3 +979,136 @@ sigret(void)
   release(&p->lock);
 }
 
+// ADDED Q3.2
+static struct thread*
+allocthread(struct proc *p)
+{
+    int t_index = 0;
+    struct thread *t;
+
+    for (t = p->threads; t < &p->threads[NTHREAD]; t++, t_index++) {
+      if (t != mythread()) {
+        acquire(&t->lock);
+        if (t->state == UNUSED_T) {
+          goto found;
+        }
+        release(&t->lock);
+      }
+    }
+    return 0;
+
+found:
+  t->tid = alloctid();
+  t->index = t_index;
+  t->state = USED_T;
+  t->trapframe = &p->trapframes[t_index];
+  t->proc = p;
+
+  // Set up new context to start executing at forkret,
+  // which returns to user space.
+  memset(&t->context, 0, sizeof(t->context));
+  //t->context.ra = (uint64)forkret; // TODO: check? ra?
+  if((t->kstack = (uint64) kalloc()) == 0) {
+      freethread(t);
+      release(&t->lock);
+      return 0;
+  }
+  t->context.sp = t->kstack + PGSIZE;
+  return t;
+}
+
+int
+kthread_create(void (*start_func)(), void* stack)
+{
+    struct thread* t = mythread();
+    struct thread* nt;
+
+    if((nt = allocthread(myproc())) == 0) {
+        return -1;
+    }
+    *nt->trapframe = *t->trapframe;
+    // *nt->context = *t->context; // TODO: check
+    nt->trapframe->epc = (uint64)start_func;
+    nt->trapframe->sp = (uint64)(stack + MAX_STACK_SIZE);
+    nt->state = RUNNABLE;
+
+    release(&nt->lock);
+    return nt->tid;
+}
+
+void
+exit_single_thread(int status) {
+  struct thread *t = mythread();
+  struct proc *p = myproc();
+
+  acquire(&t->lock);
+  t->xstate = status;
+  t->state = ZOMBIE_T;
+
+  release(&p->lock);
+  wakeup(t);
+  // Jump into the scheduler, never to return.
+  sched();
+  panic("zombie exit");
+}
+
+void
+kthread_exit(int status)
+{
+  struct proc *p = myproc();
+
+  acquire(&p->lock);
+  int used_threads = 0;
+  for (struct thread *t = p->threads; t < &p->threads[NTHREAD]; t++) {
+    if (t->state != UNUSED_T) {
+      used_threads++;
+    }
+  }
+
+  if (used_threads <= 1) {
+    release(&p->lock);
+    exit(status);
+  }
+
+  exit_single_thread(status);
+}
+
+int
+kthread_join(int thread_id, int *status)
+{
+  struct thread *jt  = 0;
+  struct proc *p = myproc();  
+
+  for (struct thread *temp_t = p->threads; temp_t < &p->threads[NTHREAD]; temp_t++) {
+    if (thread_id == temp_t->tid) {
+      jt = temp_t;
+    }
+  }  
+
+  if (jt == 0) {
+    return -1;
+  }
+
+  acquire(&join_lock);
+
+  // TODO: deadlock?
+  while (1) {
+    acquire(&jt->lock);
+    if (jt->state == ZOMBIE_T) {
+      break;
+    }
+    release(&jt->lock);
+    sleep(jt, &join_lock);
+  }
+
+  if(status != 0 && copyout(p->pagetable, (uint64)status, (char *)&jt->xstate, sizeof(jt->xstate)) < 0) {
+    release(&jt->lock);
+    release(&join_lock);
+    return -1;
+  }
+
+  freethread(jt);
+  release(&jt->lock);
+  release(&join_lock);
+  return 0;
+}
