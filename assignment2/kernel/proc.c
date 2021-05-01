@@ -133,6 +133,44 @@ alloctid() {
   return tid;
 }
 
+// ADDED Q3.2
+static struct thread*
+allocthread(struct proc *p)
+{
+    int t_index = 0;
+    struct thread *t;
+
+    for (t = p->threads; t < &p->threads[NTHREAD]; t++, t_index++) {
+      if (t != mythread()) {
+        acquire(&t->lock);
+        if (t->state == UNUSED_T) {
+          goto found;
+        }
+        release(&t->lock);
+      }
+    }
+    return 0;
+
+found:
+  t->tid = alloctid();
+  t->index = t_index;
+  t->state = USED_T;
+  t->trapframe = &p->trapframes[t_index];
+  t->proc = p;
+
+  // Set up new context to start executing at forkret,
+  // which returns to user space.
+  memset(&t->context, 0, sizeof(t->context));
+  t->context.ra = (uint64)forkret;
+  if((t->kstack = (uint64)kalloc()) == 0) {
+      freethread(t);
+      release(&t->lock);
+      return 0;
+  }
+  t->context.sp = t->kstack + PGSIZE;
+  return t;
+}
+
 // Look in the process table for an UNUSED proc.
 // If found, initialize state required to run in the kernel,
 // and return with p->lock held.
@@ -163,8 +201,6 @@ found:
     p->signal_handlers[signum] = SIG_DFL;
   }
 
-  struct thread *t = &p->threads[0]; // ADDED Q3
-
   // Allocate a trapframe page.
   // ADDED Q3
   if((p->trapframes = (struct trapframe *)kalloc()) == 0){
@@ -172,13 +208,6 @@ found:
     release(&p->lock);
     return 0;
   }
-
-  // ADDED Q3
-  t->tid = alloctid();
-  t->index = 0;
-  t->state = USED_T;
-  t->trapframe = &p->trapframes[t->index];
-  t->proc = p;
 
   // ADDED Q2 
   // Allocate a trapframe_backup page.
@@ -196,20 +225,14 @@ found:
     return 0;
   }
 
-  // Set up new context to start executing at forkret,
-  // which returns to user space.
-  memset(&t->context, 0, sizeof(t->context));
-  t->context.ra = (uint64)forkret;
-
-//TODO: ?
-  //if ((t->kstack = (uint64)kalloc()) == 0) 
-  //  {
- //       freeproc(p);
-  //      release(&p->lock);
-  //      return 0;
-  //  }
-
-  t->context.sp = t->kstack + PGSIZE;
+  struct thread *t;
+  if ((t = allocthread(p)) == 0) {
+    release(&t->lock);
+    release(&p->lock);
+    freeproc(p);
+    return 0;
+  }
+  release(&t->lock);
   return p;
 }
 
@@ -218,10 +241,8 @@ static void
 freethread(struct thread *t)
 {
     if (t->kstack)
-        kfree((void *)t->kstack);
+      kfree((void *)t->kstack);
     t->kstack = 0;
-    if(t->trapframe)
-      kfree((void*)t->trapframe);
     t->trapframe = 0;
     t->tid = 0;
     t->proc = 0;
@@ -237,9 +258,9 @@ static void
 freeproc(struct proc *p)
 {
   //ADDED Q3
- // if(p->trapframe)
-  //  kfree((void*)p->trapframe);
- // p->trapframe = 0;
+  if(p->trapframes)
+    kfree((void*)p->trapframes);
+  p->trapframes = 0;
 
   // ADDED Q2.1.2
   if(p->trapframe_backup)
@@ -289,7 +310,7 @@ proc_pagetable(struct proc *p)
 
   // map the trapframe just below TRAMPOLINE, for trampoline.S.
   if(mappages(pagetable, TRAPFRAME(0), PGSIZE,
-              (uint64)(p->threads[0].trapframe), PTE_R | PTE_W) < 0){
+              (uint64)(p->trapframes), PTE_R | PTE_W) < 0){
     uvmunmap(pagetable, TRAMPOLINE, 1, 0);
     uvmfree(pagetable, 0);
     return 0;
@@ -334,8 +355,8 @@ userinit(void)
   p->sz = PGSIZE;
 
   // prepare for the very first "return" from kernel to user.
-  p->threads[0].trapframe->epc = 0;      // user program counter
-  p->threads[0].trapframe->sp = PGSIZE;  // user stack pointer
+  p->trapframes->epc = 0;      // user program counter
+  p->trapframes->sp = PGSIZE;  // user stack pointer
 
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
@@ -558,7 +579,7 @@ wait(uint64 addr)
 // ADDED Q2.3.1
 // ADDED Q3
 void
-kill_handler() //TODO: update to thread??
+kill_handler()
 {
   struct proc *p = myproc();
   p->killed = 1; 
@@ -567,7 +588,6 @@ kill_handler() //TODO: update to thread??
       t->state = RUNNABLE;
     }
   }
-
 }
 
 // ADDED Q2.3.1
@@ -680,7 +700,6 @@ scheduler(void)
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
 
-    // TODO: return at the end all for to- for(struct thread *t = p->threads; t< &p->threads[NTHREAD]; t++)
     for(p = proc; p < &proc[NPROC]; p++) {
       for (struct thread *t = p->threads; t < &p->threads[NTHREAD]; t++) {
         acquire(&t->lock);
@@ -688,6 +707,8 @@ scheduler(void)
           // Switch to chosen process.  It is the process's job
           // to release its lock and then reacquire it
           // before jumping back to us.
+
+          printf("scheduler found thread: %d\n",t->tid); //REMOVE
           t->state = RUNNING;
           c->thread = t;
           swtch(&c->context, &t->context);
@@ -719,8 +740,10 @@ sched(void)
 
   if(!holding(&t->lock))
     panic("sched t->lock");
-  if(mycpu()->noff != 1)
-    panic("sched locks");
+  if(mycpu()->noff != 1) {
+    printf("noff: %d\n", mycpu()->noff); // REMOVE
+    panic("sched locks\n");
+  }
   if(t->state == RUNNING)
     panic("sched running");
   if(intr_get())
@@ -760,7 +783,6 @@ forkret(void)
     first = 0;
     fsinit(ROOTDEV);
   }
-
   usertrapret();
 }
 
@@ -977,44 +999,6 @@ sigret(void)
   p->handling_user_level_signal = 0;
   release(&t->lock);
   release(&p->lock);
-}
-
-// ADDED Q3.2
-static struct thread*
-allocthread(struct proc *p)
-{
-    int t_index = 0;
-    struct thread *t;
-
-    for (t = p->threads; t < &p->threads[NTHREAD]; t++, t_index++) {
-      if (t != mythread()) {
-        acquire(&t->lock);
-        if (t->state == UNUSED_T) {
-          goto found;
-        }
-        release(&t->lock);
-      }
-    }
-    return 0;
-
-found:
-  t->tid = alloctid();
-  t->index = t_index;
-  t->state = USED_T;
-  t->trapframe = &p->trapframes[t_index];
-  t->proc = p;
-
-  // Set up new context to start executing at forkret,
-  // which returns to user space.
-  memset(&t->context, 0, sizeof(t->context));
-  //t->context.ra = (uint64)forkret; // TODO: check? ra?
-  if((t->kstack = (uint64) kalloc()) == 0) {
-      freethread(t);
-      release(&t->lock);
-      return 0;
-  }
-  t->context.sp = t->kstack + PGSIZE;
-  return t;
 }
 
 int

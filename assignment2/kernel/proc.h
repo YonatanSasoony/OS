@@ -22,7 +22,7 @@ struct context {
 
 // Per-CPU state.
 struct cpu {
-  struct thread *thread;          // The process running on this cpu, or null. //ADDED Q3
+  struct thread *thread;      // The process running on this cpu, or null. //ADDED Q3
   struct context context;     // swtch() here to enter scheduler().
   int noff;                   // Depth of push_off() nesting.
   int intena;                 // Were interrupts enabled before push_off()?
