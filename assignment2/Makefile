@@ -115,7 +115,8 @@ mkfs/mkfs: mkfs/mkfs.c $K/fs.h $K/param.h
 # http://www.gnu.org/software/make/manual/html_node/Chained-Rules.html
 .PRECIOUS: %.o
 # ADDED test_sig Q2.5
-#REMOVE usertests2, test_thread
+# ADDED Csemaphore Q4.2
+# REMOVE usertests2, test_thread
 UPROGS=\
 	$U/_cat\
 	$U/_echo\
@@ -136,6 +137,7 @@ UPROGS=\
 	$U/_zombie\
 	$U/_test_sig\
 	$U/_test_thread\
+	$U/_Csemaphore\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)

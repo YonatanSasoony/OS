@@ -43,3 +43,7 @@ entry("kthread_create"); # ADDED Q3.2
 entry("kthread_id"); # ADDED Q3.2
 entry("kthread_exit"); # ADDED Q3.2
 entry("kthread_join"); # ADDED Q3.2
+entry("bsem_alloc"); # ADDED Q4.1
+entry("bsem_free"); # ADDED Q4.1
+entry("bsem_down"); # ADDED Q4.1
+entry("bsem_up"); # ADDED Q4.1

@@ -34,6 +34,12 @@ int kthread_id(void);
 void kthread_exit(int satus);
 int kthread_join(int, int*);
 
+// ADDED Q4.1
+int bsem_alloc(void);
+void bsem_free(int);
+void bsem_down(int);
+void bsem_up(int);
+
 // ulib.c
 int stat(const char*, struct stat*);
 char* strcpy(char*, const char*);

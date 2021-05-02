@@ -114,6 +114,12 @@ extern uint64 sys_kthread_id(void);
 extern uint64 sys_kthread_exit(void);
 extern uint64 sys_kthread_join(void);
 
+// ADDED Q4.1
+extern uint64 sys_bsem_alloc(void);
+extern uint64 sys_bsem_free(void);
+extern uint64 sys_bsem_down(void);
+extern uint64 sys_bsem_up(void);
+
 static uint64 (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
 [SYS_exit]    sys_exit,
@@ -137,14 +143,21 @@ static uint64 (*syscalls[])(void) = {
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
 [SYS_sigprocmask]   sys_sigprocmask, // ADDED Q2.1.3
-[SYS_sigaction]   sys_sigaction, // ADDED Q2.1.4
-[SYS_sigret]   sys_sigret, // ADDED Q2.1.5
+[SYS_sigaction]     sys_sigaction, // ADDED Q2.1.4
+[SYS_sigret]        sys_sigret, // ADDED Q2.1.5
 
 // ADDED Q3.2
 [SYS_kthread_create] sys_kthread_create,
 [SYS_kthread_id]     sys_kthread_id,
 [SYS_kthread_exit]   sys_kthread_exit,
 [SYS_kthread_join]   sys_kthread_join,
+
+// ADDED Q4.1
+[SYS_bsem_alloc]    sys_bsem_alloc,
+[SYS_bsem_free]     sys_bsem_free,
+[SYS_bsem_down]     sys_bsem_down,
+[SYS_bsem_up]       sys_bsem_up,
+
 };
 
 void

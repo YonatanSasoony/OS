@@ -11,8 +11,16 @@ struct superblock;
 
  // ADDED Q2.1.4
 struct sigaction {
-void (*sa_handler) (int);
-uint sigmask;
+  void (*sa_handler) (int);
+  uint sigmask;
+};
+
+// ADDED Q4.1
+struct bsem {
+    int active; 
+    int blocked;
+    int permits;
+    struct spinlock mutex;
 };
 
 // bio.c
@@ -116,11 +124,16 @@ uint            sigprocmask(uint); // ADDED Q2.1.3
 int             sigaction(int, const struct sigaction *, struct sigaction *); // ADDED Q2.1.4
 void            sigret(void); // ADDED Q2.1.5
 void            handle_signals(void); // ADDED Q2.4
+// ADDED Q3.2
 int             kthread_create(uint64, uint64);
 int             kthread_id();
 void            kthread_exit(int);
 int             kthread_join(int, int*);
-
+// ADDED Q4.1
+int             bsem_alloc(void);
+void            bsem_free(int);
+void            bsem_down(int);
+void            bsem_up(int);
 
 // swtch.S
 void            swtch(struct context*, struct context*);

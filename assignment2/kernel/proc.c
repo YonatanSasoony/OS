@@ -19,6 +19,8 @@ struct spinlock pid_lock;
 int nexttid = 1;
 struct spinlock tid_lock;
 
+struct bsem bsems[MAX_BSEM]; // ADDED Q4.1
+
 extern void forkret(void);
 static void freeproc(struct proc *p);
 static void freethread(struct thread *t);
@@ -49,12 +51,20 @@ proc_mapstacks(pagetable_t kpgtbl) {
   }
 }
 
+void
+init_bsems()
+{
+  for(struct bsem* bs = bsems; bs < &bsems[MAX_BSEM]; bs++){
+    bs->active = 0;
+    initlock(&bs->mutex, "bsem_mutex");
+  }
+}
 // initialize the proc table at boot time.
 void
 procinit(void)
 {
   struct proc *p;
-  
+  init_bsems();
   initlock(&pid_lock, "nextpid");
   initlock(&wait_lock, "wait_lock");
   for(p = proc; p < &proc[NPROC]; p++) {
@@ -821,7 +831,7 @@ sleep(void *chan, struct spinlock *lk)
 }
 
 // Wake up all threads sleeping on chan.
-// Must be called without any p->lock.
+// Must be called without any t->lock.
 // ADDED Q3
 void
 wakeup(void *chan)
@@ -1092,4 +1102,107 @@ kthread_join(int thread_id, int *status)
 
   release(&jt->lock);
   return 0;
+}
+
+
+// ADDED Q4.1
+void
+wakeupSingleThread(void *chan)
+{
+  struct proc *p;
+  for(p = proc; p < &proc[NPROC]; p++) {
+    for (struct thread *t = p->threads; t < &p->threads[NTHREAD]; t++) {
+      if(t != mythread()){
+        acquire(&t->lock);
+        if (t->state == SLEEPING && t->chan == chan) {
+          t->state = RUNNABLE;
+          release(&t->lock);
+          return;
+        }
+        release(&t->lock);
+      }
+    }
+  }
+}
+
+int
+bsem_alloc(void)
+{
+  int descriptor = 0;
+  for(struct bsem* bs = bsems; bs < &bsems[MAX_BSEM]; bs++, descriptor++){
+    if(!bs->active){
+      acquire(&bs->mutex);
+      if(bs->active) continue;
+      bs->active = 1;
+      bs->permits = 1;
+      bs->blocked = 0;
+      release(&bs->mutex);
+      return descriptor;
+    }
+  }
+  return -1;
+}
+
+void
+bsem_free(int descriptor)
+{
+  if (descriptor < 0 || descriptor >= MAX_BSEM || !bsems[descriptor].active) {
+    return;
+  }
+  // TODO: acquire(&bs->lock);
+  bsems[descriptor].active = 0;
+  // TODO: release(&bs->lock);
+}
+
+// If (S≤0)
+//    the process is blocked. It will resume execution only after it is woken-up
+// Else
+//    S--
+void
+bsem_down(int descriptor)
+{
+  if (descriptor < 0 || descriptor >= MAX_BSEM || !bsems[descriptor].active) {
+    return;
+  }
+  struct bsem *bs = &bsems[descriptor];
+  
+  acquire(&bs->mutex); // TODO: BUSY WAIT
+  // while(test_and_set() == 1){
+    
+  // }
+
+  if (bs->permits <= 0) {
+    bs->blocked++;
+    sleep(bs, &bs->mutex);
+  }
+  else{
+    bs->permits--;
+  }
+
+  release(&bs->mutex);
+}
+
+// If (there are blocked processes) 
+//    wake-up one of them
+// Else 
+//    S++
+void
+bsem_up(int descriptor)
+{
+  if (descriptor < 0 || descriptor >= MAX_BSEM || !bsems[descriptor].active) {
+    return;
+  }
+  struct bsem *bs = &bsems[descriptor];
+
+  acquire(&bs->mutex);
+
+  if(bs->blocked > 0){
+    bs->blocked--;
+    wakeupSingleThread(bs);
+  }
+  else{
+    bs->permits++;
+  }
+
+  release(&bs->mutex);
 }
