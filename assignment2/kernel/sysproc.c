@@ -146,13 +146,13 @@ sys_sigret(void)
 uint64
 sys_kthread_create(void)
 {
-  void (*start_func)();
-  void *stack;
+  uint64 start_func;
+  uint64 stack;
 
-  if(argaddr(0, (uint64 *)&start_func) < 0)
+  if(argaddr(0, &start_func) < 0)
     return -1;
 
-  if(argaddr(1, (uint64 *)&stack) < 0)
+  if(argaddr(1, &stack) < 0)
     return -1;
 
   return kthread_create(start_func, stack);

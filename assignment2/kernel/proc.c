@@ -154,6 +154,7 @@ found:
   t->index = t_index;
   t->state = USED_T;
   t->trapframe = &p->trapframes[t_index];
+  t->terminated = 0;
   t->proc = p;
 
   // Set up new context to start executing at forkret,
@@ -1003,8 +1004,9 @@ sigret(void)
 }
 
 int
-kthread_create(void (*start_func)(), void* stack)
-{
+//kthread_create(void (*start_func)(), void* stack)
+kthread_create(uint64 start_func, uint64 stack)
+{ 
     struct thread* t = mythread();
     struct thread* nt;
 
@@ -1012,7 +1014,6 @@ kthread_create(void (*start_func)(), void* stack)
         return -1;
     }
     *nt->trapframe = *t->trapframe;
-    // *nt->context = *t->context; // TODO: check
     nt->trapframe->epc = (uint64)start_func;
     nt->trapframe->sp = (uint64)(stack + MAX_STACK_SIZE);
     nt->state = RUNNABLE;

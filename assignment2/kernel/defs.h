@@ -116,7 +116,7 @@ uint            sigprocmask(uint); // ADDED Q2.1.3
 int             sigaction(int, const struct sigaction *, struct sigaction *); // ADDED Q2.1.4
 void            sigret(void); // ADDED Q2.1.5
 void            handle_signals(void); // ADDED Q2.4
-int             kthread_create(void (*)(), void*);
+int             kthread_create(uint64, uint64);
 int             kthread_id();
 void            kthread_exit(int);
 int             kthread_join(int, int*);
