@@ -21,17 +21,9 @@ exec(char *path, char **argv)
   pagetable_t pagetable = 0, oldpagetable;
   struct proc *p = myproc();
   struct thread *t = mythread();
-  begin_op();
-
-  if((ip = namei(path)) == 0){
-    end_op();
-    return -1;
-  }
-  ilock(ip);
 
   // ADDED Q3
-  acquire(&p->lock); //TOOD: decide where to put this block
-   for(struct thread *t_temp = p->threads; t_temp < &p->threads[NTHREAD]; t_temp++){ 
+  for(struct thread *t_temp = p->threads; t_temp < &p->threads[NTHREAD]; t_temp++){ 
     if(t_temp->tid != t->tid){
       acquire(&t_temp->lock);
       t_temp->terminated = 1;
@@ -42,7 +34,14 @@ exec(char *path, char **argv)
       kthread_join(t_temp->tid, 0);
     }
   }
-  release(&p->lock);
+
+  begin_op();
+
+  if((ip = namei(path)) == 0){
+    end_op();
+    return -1;
+  }
+  ilock(ip);
 
   // Check ELF header
   if(readi(ip, 0, (uint64)&elf, 0, sizeof(elf)) != sizeof(elf))
@@ -122,7 +121,7 @@ exec(char *path, char **argv)
     if(*s == '/')
       last = s+1;
   safestrcpy(p->name, last, sizeof(p->name));
-    
+
   // Commit to the user image.
   oldpagetable = p->pagetable;
   p->pagetable = pagetable;
@@ -138,7 +137,6 @@ exec(char *path, char **argv)
       p->signal_handlers[signum] = SIG_DFL;
     }
   }
-
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 
  bad:

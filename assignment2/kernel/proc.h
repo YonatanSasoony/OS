@@ -88,18 +88,17 @@ enum threadstate { UNUSED_T, USED_T, SLEEPING, RUNNABLE, RUNNING, ZOMBIE_T };
 struct thread{
   struct spinlock lock;
 
-  enum threadstate state;        // Threa state
+  enum threadstate state;      // Threa state
   void *chan;                  // If non-zero, sleeping on chan
-  int terminated;                  // If non-zero, have been terminated
+  int terminated;              // If non-zero, have been terminated
   int xstate;                  // Exit status to be returned to thread called to kthread_join
-  int tid;                    // Thread's ID
-  int index;                 // Thread's internal index in the process's array
+  int tid;                     // Thread's ID
+  int index;                   // Thread's internal index in the process's array
 
-  struct proc *proc;     // Thread's process
-  
+  struct proc *proc;           // Thread's process
   
   uint64 kstack;               // Thread's stack
-  struct trapframe *trapframe; // data page for trampoline.S // TODO:kalloc this 
+  struct trapframe *trapframe; // data page for trampoline.S
   struct context context;      // swtch() here to run process
 };
 

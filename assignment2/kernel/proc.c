@@ -33,8 +33,6 @@ extern void* end_inject_sigret; // ADDED Q2.4
 // must be acquired before any p->lock.
 struct spinlock wait_lock;
 
-struct spinlock join_lock; // ADDED Q3.2
-
 // Allocate a page for each process's kernel stack.
 // Map it high in memory, followed by an invalid
 // guard page.
@@ -708,7 +706,7 @@ scheduler(void)
           // to release its lock and then reacquire it
           // before jumping back to us.
 
-          printf("scheduler found thread: %d\n",t->tid); //REMOVE
+         // printf("scheduler found thread: %d\n",t->tid); //REMOVE
           t->state = RUNNING;
           c->thread = t;
           swtch(&c->context, &t->context);
@@ -738,10 +736,13 @@ sched(void)
   int intena;
   struct thread *t = mythread();
 
+
   if(!holding(&t->lock))
     panic("sched t->lock");
   if(mycpu()->noff != 1) {
     printf("noff: %d\n", mycpu()->noff); // REMOVE
+    if (holding(&myproc()->lock))
+      printf("holding proc lock\n"); //REMOVE
     panic("sched locks\n");
   }
   if(t->state == RUNNING)
@@ -1064,35 +1065,30 @@ kthread_join(int thread_id, int *status)
   struct proc *p = myproc();  
 
   for (struct thread *temp_t = p->threads; temp_t < &p->threads[NTHREAD]; temp_t++) {
+    acquire(&temp_t->lock);
     if (thread_id == temp_t->tid) {
       jt = temp_t;
+      goto found;
     }
+    release(&temp_t->lock);
   }  
 
-  if (jt == 0) {
-    return -1;
+  //not found
+  return -1;
+
+  found:
+  while (jt->state != ZOMBIE_T && jt->state != UNUSED_T && jt->tid == thread_id) {
+    sleep(jt, &jt->lock);
   }
 
-  acquire(&join_lock);
-
-  // TODO: deadlock?
-  while (1) {
-    acquire(&jt->lock);
-    if (jt->state == ZOMBIE_T) {
-      break;
+  if (jt->state == ZOMBIE_T && jt->tid == thread_id) {
+    if (status != 0 && copyout(p->pagetable, (uint64)status, (char *)&jt->xstate, sizeof(jt->xstate)) < 0) {
+      release(&jt->lock);
+      return -1;
     }
-    release(&jt->lock);
-    sleep(jt, &join_lock);
-  }
+    freethread(jt);
+  } 
 
-  if(status != 0 && copyout(p->pagetable, (uint64)status, (char *)&jt->xstate, sizeof(jt->xstate)) < 0) {
-    release(&jt->lock);
-    release(&join_lock);
-    return -1;
-  }
-
-  freethread(jt);
   release(&jt->lock);
-  release(&join_lock);
   return 0;
 }

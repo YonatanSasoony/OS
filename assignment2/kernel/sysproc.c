@@ -173,7 +173,7 @@ sys_kthread_exit(void)
     return -1;
 
   kthread_exit(status);
-  return 0; //TODO: retval?
+  return 0;
 }
 
 uint64
