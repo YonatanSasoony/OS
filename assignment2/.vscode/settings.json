@@ -4,7 +4,8 @@
         "types.h": "c",
         "memlayout.h": "c",
         "proc.h": "c",
-        "csemaphore.h": "c"
+        "csemaphore.h": "c",
+        "user.h": "c"
     },
     "todo-tree.tree.showBadges": true
 }

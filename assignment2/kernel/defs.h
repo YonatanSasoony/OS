@@ -10,14 +10,6 @@ struct stat;
 struct superblock;
 struct sigaction;
 
-// ADDED Q4.1
-// struct bsem {
-//     int active; 
-//     int blocked;
-//     int permits;
-//     struct spinlock mutex;
-// };
-
 // bio.c
 void            binit(void);
 struct buf*     bread(uint, uint);
@@ -120,7 +112,7 @@ int             sigaction(int, const struct sigaction *, struct sigaction *); //
 void            sigret(void); // ADDED Q2.1.5
 void            handle_signals(void); // ADDED Q2.4
 // ADDED Q3.2
-int             kthread_create(uint64, uint64);
+int             kthread_create(void (*)(), void*);
 int             kthread_id();
 void            kthread_exit(int);
 int             kthread_join(int, int*);

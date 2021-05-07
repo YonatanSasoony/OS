@@ -6,6 +6,14 @@ struct sigaction {
   uint sigmask;
 };
 
+// ADDED Q4.1
+struct bsem {
+    int active; 
+    int blocked;
+    int permits;
+    struct spinlock mutex;
+};
+
 // Saved registers for kernel context switches.
 struct context {
   uint64 ra;

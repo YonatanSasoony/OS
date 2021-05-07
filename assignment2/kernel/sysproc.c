@@ -155,7 +155,7 @@ sys_kthread_create(void)
   if(argaddr(1, &stack) < 0)
     return -1;
 
-  return kthread_create(start_func, stack);
+  return kthread_create((void (*)())start_func, (void *)stack);
 }
 
 uint64

@@ -116,7 +116,6 @@ mkfs/mkfs: mkfs/mkfs.c $K/fs.h $K/param.h
 .PRECIOUS: %.o
 # ADDED test_sig Q2.5
 # ADDED Csemaphore Q4.2
-# REMOVE usertests2, test_thread
 UPROGS=\
 	$U/_cat\
 	$U/_echo\
