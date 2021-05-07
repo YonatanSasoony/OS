@@ -19,7 +19,7 @@ struct spinlock pid_lock;
 int nexttid = 1;
 struct spinlock tid_lock;
 
-struct bsem bsems[MAX_BSEM]; // ADDED Q4.1
+//struct bsem bsems[MAX_BSEM]; // ADDED Q4.1
 
 extern void forkret(void);
 static void freeproc(struct proc *p);
@@ -34,6 +34,8 @@ extern void* end_inject_sigret; // ADDED Q2.4
 // memory model when using p->parent.
 // must be acquired before any p->lock.
 struct spinlock wait_lock;
+
+struct spinlock join_lock; // ADDED Q3
 
 // Allocate a page for each process's kernel stack.
 // Map it high in memory, followed by an invalid
@@ -51,13 +53,14 @@ proc_mapstacks(pagetable_t kpgtbl) {
   }
 }
 
+// ADDED Q4.1
 void
 init_bsems()
 {
-  for(struct bsem* bs = bsems; bs < &bsems[MAX_BSEM]; bs++){
-    bs->active = 0;
-    initlock(&bs->mutex, "bsem_mutex");
-  }
+  // for(struct bsem* bs = bsems; bs < &bsems[MAX_BSEM]; bs++){
+  //   bs->active = 0;
+  //   initlock(&bs->mutex, "bsem_mutex");
+  // }
 }
 // initialize the proc table at boot time.
 void
@@ -66,7 +69,9 @@ procinit(void)
   struct proc *p;
   init_bsems();
   initlock(&pid_lock, "nextpid");
+  initlock(&tid_lock, "nexttid"); // ADDED Q3
   initlock(&wait_lock, "wait_lock");
+  initlock(&join_lock, "join_lock"); // ADDED Q3
   for(p = proc; p < &proc[NPROC]; p++) {
     initlock(&p->lock, "proc");
     //p->kstack = KSTACK((int) (p - proc)); ADDED Q3
@@ -1015,7 +1020,7 @@ sigret(void)
 
 int
 //kthread_create(void (*start_func)(), void* stack)
-kthread_create(uint64 start_func, uint64 stack)
+kthread_create(uint64 start_func, uint64 stack) // REMOVE?
 { 
     struct thread* t = mythread();
     struct thread* nt;
@@ -1025,7 +1030,8 @@ kthread_create(uint64 start_func, uint64 stack)
     }
     *nt->trapframe = *t->trapframe;
     nt->trapframe->epc = (uint64)start_func;
-    nt->trapframe->sp = (uint64)(stack + MAX_STACK_SIZE);
+    nt->trapframe->sp = (uint64)(stack + MAX_STACK_SIZE) - 16; // TODO: - 16? ..  
+    // It's stack pointer will be the "malloced" stack plus "STACK_SIZE" minus 16.
     nt->state = RUNNABLE;
 
     release(&nt->lock);
@@ -1033,16 +1039,15 @@ kthread_create(uint64 start_func, uint64 stack)
 }
 
 void
-exit_single_thread(int status) {
+exit_single_thread(int status) { // exit single thread when there are other threads in the process
   struct thread *t = mythread();
-  struct proc *p = myproc();
+  acquire(&join_lock);
+  wakeup(t);
 
   acquire(&t->lock);
   t->xstate = status;
   t->state = ZOMBIE_T;
-
-  release(&p->lock);
-  wakeup(t);
+  release(&join_lock);
   // Jump into the scheduler, never to return.
   sched();
   panic("zombie exit");
@@ -1052,17 +1057,17 @@ void
 kthread_exit(int status)
 {
   struct proc *p = myproc();
-
   acquire(&p->lock);
   int used_threads = 0;
   for (struct thread *t = p->threads; t < &p->threads[NTHREAD]; t++) {
+    acquire(&t->lock);
     if (t->state != UNUSED_T) {
       used_threads++;
     }
+    release(&t->lock);
   }
-
+  release(&p->lock);
   if (used_threads <= 1) {
-    release(&p->lock);
     exit(status);
   }
 
@@ -1077,8 +1082,9 @@ kthread_join(int thread_id, int *status)
 
   for (struct thread *temp_t = p->threads; temp_t < &p->threads[NTHREAD]; temp_t++) {
     acquire(&temp_t->lock);
-    if (thread_id == temp_t->tid) {
+    if (temp_t != mythread() && thread_id == temp_t->tid) {
       jt = temp_t;
+      release(&temp_t->lock);
       goto found;
     }
     release(&temp_t->lock);
@@ -1088,10 +1094,13 @@ kthread_join(int thread_id, int *status)
   return -1;
 
   found:
+  acquire(&join_lock);
   while (jt->state != ZOMBIE_T && jt->state != UNUSED_T && jt->tid == thread_id) {
-    sleep(jt, &jt->lock);
+    sleep(jt, &join_lock);
   }
 
+  release(&join_lock);
+  acquire(&jt->lock);
   if (jt->state == ZOMBIE_T && jt->tid == thread_id) {
     if (status != 0 && copyout(p->pagetable, (uint64)status, (char *)&jt->xstate, sizeof(jt->xstate)) < 0) {
       release(&jt->lock);
@@ -1109,49 +1118,49 @@ kthread_join(int thread_id, int *status)
 void
 wakeupSingleThread(void *chan)
 {
-  struct proc *p;
-  for(p = proc; p < &proc[NPROC]; p++) {
-    for (struct thread *t = p->threads; t < &p->threads[NTHREAD]; t++) {
-      if(t != mythread()){
-        acquire(&t->lock);
-        if (t->state == SLEEPING && t->chan == chan) {
-          t->state = RUNNABLE;
-          release(&t->lock);
-          return;
-        }
-        release(&t->lock);
-      }
-    }
-  }
+  // struct proc *p;
+  // for(p = proc; p < &proc[NPROC]; p++) {
+  //   for (struct thread *t = p->threads; t < &p->threads[NTHREAD]; t++) {
+  //     if(t != mythread()){
+  //       acquire(&t->lock);
+  //       if (t->state == SLEEPING && t->chan == chan) {
+  //         t->state = RUNNABLE;
+  //         release(&t->lock);
+  //         return;
+  //       }
+  //       release(&t->lock);
+  //     }
+  //   }
+  // }
 }
 
 int
 bsem_alloc(void)
 {
-  int descriptor = 0;
-  for(struct bsem* bs = bsems; bs < &bsems[MAX_BSEM]; bs++, descriptor++){
-    if(!bs->active){
-      acquire(&bs->mutex);
-      if(bs->active) continue;
-      bs->active = 1;
-      bs->permits = 1;
-      bs->blocked = 0;
-      release(&bs->mutex);
-      return descriptor;
-    }
-  }
+  // int descriptor = 0;
+  // for(struct bsem* bs = bsems; bs < &bsems[MAX_BSEM]; bs++, descriptor++){
+  //   if(!bs->active){
+  //     acquire(&bs->mutex);
+  //     if(bs->active) continue;
+  //     bs->active = 1;
+  //     bs->permits = 1;
+  //     bs->blocked = 0;
+  //     release(&bs->mutex);
+  //     return descriptor;
+  //   }
+  // }
   return -1;
 }
 
 void
 bsem_free(int descriptor)
 {
-  if (descriptor < 0 || descriptor >= MAX_BSEM || !bsems[descriptor].active) {
-    return;
-  }
-  // TODO: acquire(&bs->lock);
-  bsems[descriptor].active = 0;
-  // TODO: release(&bs->lock);
+  // if (descriptor < 0 || descriptor >= MAX_BSEM || !bsems[descriptor].active) {
+  //   return;
+  // }
+  // // TODO: acquire(&bs->lock);
+  // bsems[descriptor].active = 0;
+  // // TODO: release(&bs->lock);
 }
 
 // If (S≤0)
@@ -1161,25 +1170,25 @@ bsem_free(int descriptor)
 void
 bsem_down(int descriptor)
 {
-  if (descriptor < 0 || descriptor >= MAX_BSEM || !bsems[descriptor].active) {
-    return;
-  }
-  struct bsem *bs = &bsems[descriptor];
+  // if (descriptor < 0 || descriptor >= MAX_BSEM || !bsems[descriptor].active) {
+  //   return;
+  // }
+  // struct bsem *bs = &bsems[descriptor];
   
-  acquire(&bs->mutex); // TODO: BUSY WAIT
-  // while(test_and_set() == 1){
+  // acquire(&bs->mutex); // TODO: BUSY WAIT
+  // // while(test_and_set() == 1){
     
+  // // }
+
+  // if (bs->permits <= 0) {
+  //   bs->blocked++;
+  //   sleep(bs, &bs->mutex);
+  // }
+  // else{
+  //   bs->permits--;
   // }
 
-  if (bs->permits <= 0) {
-    bs->blocked++;
-    sleep(bs, &bs->mutex);
-  }
-  else{
-    bs->permits--;
-  }
-
-  release(&bs->mutex);
+  // release(&bs->mutex);
 }
 
 // If (there are blocked processes) 
@@ -1189,20 +1198,20 @@ bsem_down(int descriptor)
 void
 bsem_up(int descriptor)
 {
-  if (descriptor < 0 || descriptor >= MAX_BSEM || !bsems[descriptor].active) {
-    return;
-  }
-  struct bsem *bs = &bsems[descriptor];
+  // if (descriptor < 0 || descriptor >= MAX_BSEM || !bsems[descriptor].active) {
+  //   return;
+  // }
+  // struct bsem *bs = &bsems[descriptor];
 
-  acquire(&bs->mutex);
+  // acquire(&bs->mutex);
 
-  if(bs->blocked > 0){
-    bs->blocked--;
-    wakeupSingleThread(bs);
-  }
-  else{
-    bs->permits++;
-  }
+  // if(bs->blocked > 0){
+  //   bs->blocked--;
+  //   wakeupSingleThread(bs);
+  // }
+  // else{
+  //   bs->permits++;
+  // }
 
-  release(&bs->mutex);
+  // release(&bs->mutex);
 }

@@ -1,5 +1,11 @@
 #define NTHREAD 8  // ADDED Q3
 
+ // ADDED Q2.1.4
+struct sigaction {
+  void (*sa_handler) (int);
+  uint sigmask;
+};
+
 // Saved registers for kernel context switches.
 struct context {
   uint64 ra;

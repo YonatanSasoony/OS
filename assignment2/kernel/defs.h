@@ -8,20 +8,15 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
-
- // ADDED Q2.1.4
-struct sigaction {
-  void (*sa_handler) (int);
-  uint sigmask;
-};
+struct sigaction;
 
 // ADDED Q4.1
-struct bsem {
-    int active; 
-    int blocked;
-    int permits;
-    struct spinlock mutex;
-};
+// struct bsem {
+//     int active; 
+//     int blocked;
+//     int permits;
+//     struct spinlock mutex;
+// };
 
 // bio.c
 void            binit(void);
