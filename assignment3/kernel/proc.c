@@ -267,6 +267,21 @@ growproc(int n)
   return 0;
 }
 
+// ADDED Q1
+int copy_swapFile(struct proc *src, struct proc *dst) {
+    if(!src || !src->swapFile || !dst || dst->swapFile)
+        return -1;
+    int total_size = PGSIZE * MAX_PSYC_PAGES;
+    char buffer[total_size];
+    if(readFromSwapFile(src, buffer, 0, total_size) < 0) {
+      return -1;
+    }
+    if(writeToSwapFile(dst, buffer, 0, total_size) < 0) {
+      return -1;
+    }
+    return 0;
+}
+
 // Create a new process, copying the parent.
 // Sets up child kernel stack to return as if from fork() system call.
 int
@@ -304,6 +319,26 @@ fork(void)
   safestrcpy(np->name, p->name, sizeof(p->name));
 
   pid = np->pid;
+
+  // ADDED Q1
+  if (np->pid != INIT_PID && np->pid != SHELL_PID) {
+    if (init_metadata(np) < 0) {
+      freeproc(np);
+      release(&np->lock);
+      return -1;
+    }
+  }
+
+  if (p->pid != INIT_PID && p->pid != SHELL_PID) {
+    if (copy_swapFile(p, np) < 0) {
+      freeproc(np);
+      free_metadata(np);
+      release(&np->lock);
+      return -1;
+    }
+    memmove(np->ram_pages, p->ram_pages, sizeof(p->ram_pages));
+    memmove(np->disk_pages, p->disk_pages, sizeof(p->disk_pages));
+  }
 
   release(&np->lock);
 
@@ -351,6 +386,11 @@ exit(int status)
       fileclose(f);
       p->ofile[fd] = 0;
     }
+  }
+
+  // ADDED: Q1
+  if (p->pid != INIT_PID && p->pid != SHELL_PID) {
+    free_metadata(p);
   }
 
   begin_op();
@@ -407,7 +447,11 @@ wait(uint64 addr)
             release(&wait_lock);
             return -1;
           }
-          freeproc(np);
+          freeproc(np);  // ADDED: Q1
+          if (p->pid != INIT_PID && p->pid != SHELL_PID) {
+            free_metadata(p);
+          }
+
           release(&np->lock);
           release(&wait_lock);
           return pid;
@@ -653,4 +697,227 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+// ADDED Q1
+int init_metadata(struct proc *p)
+{
+  if (!p->swapFile && createSwapFile(p) < 0) {
+    return -1;
+  }
+
+  for (int i = 0; i < MAX_PSYC_PAGES; i++) {
+    p->ram_pages[i].va = 0;
+    p->ram_pages[i].age = 0;
+    p->ram_pages[i].used = 0;
+    
+    p->disk_pages[i].va = 0;
+    p->disk_pages[i].offset = i * PGSIZE;
+    p->disk_pages[i].used = 0;
+  }
+  return 0;
+}
+
+void free_metadata(struct proc *p)
+{
+    if (removeSwapFile(p) < 0) {
+      panic("free_metadata: removeSwapFile failed");
+    }
+    p->swapFile = 0;
+
+    for (int i = 0; i < MAX_PSYC_PAGES; i++) {
+      p->ram_pages[i].va = 0;
+      p->ram_pages[i].age = 0;
+      p->ram_pages[i].used = 0;
+
+      p->disk_pages[i].va = 0;
+      p->disk_pages[i].offset = 0;
+      p->disk_pages[i].used = 0;
+    }
+}
+
+void swapout(int ram_pg_index)
+{
+  struct proc *p = myproc();
+  if (ram_pg_index < 0 || ram_pg_index > MAX_PSYC_PAGES) {
+    panic("swapout: ram page index out of bounds");
+  }
+  struct ram_page *ram_pg_to_swap = &p->ram_pages[ram_pg_index];
+  // REMOVE
+  // if (!ram_pg->used) {
+  //   panic("swapout: page unused");
+  // }
+  pte_t *pte;
+  if ((pte = walk(p->pagetable, ram_pg_to_swap->va, 0)) == 0) {
+    panic("swapout: walk failed");
+  }
+
+  // REMOVE
+  // if (!(*pte & PTE_V))
+  //   panic("swapout: invalid page");
+
+  int unused_disk_pg_index;
+  if (unused_disk_pg_index = find_free_page_in_disk(p) < 0) {
+    panic("swapout: disk overflow");
+  }
+  struct disk_page *disk_pg_to_store = &p->disk_pages[unused_disk_pg_index];
+  uint64 pa = PTE2PA(*pte);
+  char buffer[PGSIZE];
+  memmove(buffer, (void *)pa, PGSIZE); // TODO: Check va as opposed to pa.
+  if (writeToSwapFile(p, buffer, disk_pg_to_store->offset, PGSIZE) < 0) {
+    panic("swapout: failed to write to swapFile");
+  }
+  disk_pg_to_store->used = 1;
+  disk_pg_to_store->va = ram_pg_to_swap->va;
+  kfree((void *)pa);
+
+  ram_pg_to_swap->va = 0;
+  ram_pg_to_swap->age = 0; // TODO?
+  ram_pg_to_swap->used = 0;
+
+  *pte = *pte & ~PTE_V;
+  *pte = *pte | PTE_PG; // Paged out to secondary storage
+  sfence_vma();   // clear TLB
+}
+
+void swapin(int disk_index, int ram_index)
+{
+  struct proc *p = myproc();
+  if (disk_index < 0 || disk_index > MAX_PSYC_PAGES) {
+    panic("swapin: disk index out of bounds");
+  }
+
+  if (ram_index < 0 || ram_index > MAX_PSYC_PAGES) {
+    panic("swapin: ram index out of bounds");
+  }
+  struct disk_page *disk_pg = &p->disk_pages[disk_index]; 
+  // REMOVE
+  // if (!disk_pg->used) {
+  //   panic("swapin: page free");
+  // }
+  pte_t *pte;
+  if ((pte = walk(p->pagetable, disk_pg->va, 0)) == 0) {
+    panic("swapin: unallocated pte");
+  }
+
+  // REMOVE
+  // page should be valid when we swap out, if not, panic
+  // if (*pte & PTE_V || !(*pte & PTE_PG))
+  //     panic("swapin: valid page");
+
+  struct ram_page *ram_pg = &p->ram_pages[ram_index];
+  if (ram_pg->used) {
+    panic("swapin: ram page used");
+  }
+
+  uint64 npa;
+  if ( (npa = (uint64)kalloc()) == 0 ) {
+    panic("swapin: failed alocate physical address");
+  }
+  char buffer[PGSIZE];
+  if (readFromSwapFile(p, buffer, disk_pg->offset, PGSIZE) < 0) {
+    panic("swapin: read from disk failed");
+  }
+
+  memmove((void *)npa, buffer, PGSIZE); 
+
+  ram_pg->used = 1;
+  ram_pg->va = disk_pg->va;
+  ram_pg->age = 0;
+
+  disk_pg->va = 0;
+  disk_pg->used = 0;
+
+  *pte = *pte | PTE_V;                           
+  *pte = *pte & ~PTE_PG;                         
+  *pte = PA2PTE(npa) | PTE_FLAGS(*pte); // update pte using the npa
+  sfence_vma(); // clear TLB
+}
+
+int get_unused_ram_index(struct proc* p)
+{
+  for (int i=0; i<MAX_PSYC_PAGES; i++) {
+    if (!p->ram_pages[i].used) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+int get_disk_page_index(struct proc *p, uint64 va)
+{
+  for (int i = 0; i < MAX_PSYC_PAGES; i++) {
+    if (p->disk_pages[i].va == va) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+void handle_page_fault(uint64 va)
+{
+    struct proc *p = myproc();
+    pte_t *pte;
+
+    if (!(pte = walk(p->pagetable, va, 0))) {
+      panic("handle_page_fault: walk failed");
+    }
+
+    if(*pte & PTE_V){
+      panic("handle_page_fault: invalid pte");
+    }
+    
+    if(!(*pte & PTE_PG)) {
+      panic("handle_page_fault: PTE_PG off");
+    }
+    
+    int unused_ram_pg_index;
+    if ((unused_ram_pg_index = get_unused_ram_index(p)) < 0) {    
+        int ram_pg_index_to_swap = 0; // TODO PAGE REPLACEMENT ALGORITHMS
+        swapout(ram_pg_index_to_swap); 
+        unused_ram_pg_index = ram_pg_index_to_swap;
+    }
+    int target_idx;
+    if( (target_idx = get_disk_page_index(p, PGROUNDDOWN(va))) < 0) {
+      panic("handle_page_fault: get_disk_page_index failed");
+    }
+    swapin(target_idx, unused_ram_pg_index);
+}
+
+void insert_page_to_ram(uint64 va)
+{
+    struct proc *p = myproc();
+    if (p->pid == INIT_PID || p->pid == SHELL_PID) {
+      return;
+    }
+    struct ram_page *ram_pg;
+    int unused_ram_pg_index;
+    if ((unused_ram_pg_index = get_unused_ram_index(p)) < 0)
+    {
+        int ram_pg_index_to_swap = 0; // TODO PAGE REPLACEMENT ALGORITHMS
+        swapout(ram_pg_index_to_swap);
+        unused_ram_pg_index = ram_pg_index_to_swap;
+    }
+    ram_pg = &p->ram_pages[unused_ram_pg_index];
+    ram_pg->va = va;
+    ram_pg->used = 1;
+    ram_pg->age = 0;
+}
+
+// TODO assume remove page only located in ram?? or we should also iterate over the disk pages?
+void remove_page_from_ram(uint64 va)
+{
+  struct proc *p = myproc();
+  if (p->pid == INIT_PID || p->pid == SHELL_PID) {
+    return;
+  }
+  for (int i = 0; i < MAX_PSYC_PAGES; i++) {
+    if (p->ram_pages[i].va == va && p->ram_pages[i].used) {
+      p->ram_pages[i].va = 0;
+      p->ram_pages[i].used = 0;
+      p->ram_pages[i].age = 0;
+      return;
+    }
+  }
+  panic("remove_page_from_ram failed");
 }

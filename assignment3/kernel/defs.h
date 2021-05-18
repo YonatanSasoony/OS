@@ -110,6 +110,14 @@ void            yield(void);
 int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
+// ADDED Q1
+int             init_metadata(struct proc *);
+void            free_metadata(struct proc *);
+void            swapin(int, int);
+void            swapout(int);
+void            handle_page_fault(uint64);
+void            insert_page_to_ram(uint64); 
+void            remove_page_from_ram(uint64); 
 
 // swtch.S
 void            swtch(struct context*, struct context*);

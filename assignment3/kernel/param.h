@@ -11,3 +11,11 @@
 #define NBUF         (MAXOPBLOCKS*3)  // size of disk block cache
 #define FSSIZE       1000  // size of file system in blocks
 #define MAXPATH      128   // maximum file path name
+
+//ADDED Q1
+#define INIT_PID 1
+#define SHELL_PID 2
+
+#define INSTRUCTION_PAGE_FAULT 12
+#define LOAD_PAGE_FAULT 13
+#define STORE_PAGE_FAULT 15
