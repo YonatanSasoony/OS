@@ -118,6 +118,9 @@ void            swapout(int);
 void            handle_page_fault(uint64);
 void            insert_page_to_ram(uint64); 
 void            remove_page_from_ram(uint64); 
+// ADDED Q2
+int             index_page_to_swap(void);
+void            maintain_age(struct proc *);
 
 // swtch.S
 void            swtch(struct context*, struct context*);
@@ -188,6 +191,8 @@ uint64          walkaddr(pagetable_t, uint64);
 int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
+// ADDED Q1
+pte_t *         walk(pagetable_t, uint64, int);
 
 // plic.c
 void            plicinit(void);

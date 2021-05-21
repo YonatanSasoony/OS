@@ -20,6 +20,12 @@ exec(char *path, char **argv)
   struct proghdr ph;
   pagetable_t pagetable = 0, oldpagetable;
   struct proc *p = myproc();
+  
+  // ADDED Q1
+  struct ram_page ram_pages_backup[MAX_PSYC_PAGES];
+  struct disk_page disk_pages_backup[MAX_PSYC_PAGES];
+  memmove(ram_pages_backup, p->ram_pages, sizeof(p->ram_pages));
+  memmove(disk_pages_backup, p->disk_pages, sizeof(p->disk_pages));
 
   begin_op();
 
@@ -28,6 +34,12 @@ exec(char *path, char **argv)
     return -1;
   }
   ilock(ip);
+
+  //ADDED Q1
+  // TODO isSwapProc...
+  // if(isSwapProc(p) && init_metadata(p) < 0){
+  //   goto bad;
+  // }
 
   // Check ELF header
   if(readi(ip, 0, (uint64)&elf, 0, sizeof(elf)) != sizeof(elf))
@@ -119,6 +131,9 @@ exec(char *path, char **argv)
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 
  bad:
+  // ADDED Q1
+  memmove(p->ram_pages, ram_pages_backup, sizeof(ram_pages_backup));
+  memmove(p->disk_pages, disk_pages_backup, sizeof(disk_pages_backup));
   if(pagetable)
     proc_freepagetable(pagetable, sz);
   if(ip){

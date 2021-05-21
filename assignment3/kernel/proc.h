@@ -85,7 +85,7 @@ enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 // ADDED Q1
 struct ram_page {
   uint64 va;
-  int age;
+  uint age; // ADDED Q2
   int used;
 };
 
@@ -124,4 +124,7 @@ struct proc {
   // ADDED Q1
   struct ram_page ram_pages[MAX_PSYC_PAGES];
   struct disk_page disk_pages[MAX_PSYC_PAGES]; // TODO- change size to MAX_DISK_PAGES ?
+
+  // ADDED Q2
+  int scfifo_index;
 };

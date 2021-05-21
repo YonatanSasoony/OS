@@ -337,6 +337,8 @@ sfence_vma()
 #define PTE_U (1L << 4) // 1 -> user can access
 // ADDED Q1
 #define PTE_PG (1L << 9) // Paged out to secondary storage
+// ADDED Q2
+#define PTE_A (1L << 6) // ACCESSED
 
 // shift a physical address to the right place for a PTE.
 #define PA2PTE(pa) ((((uint64)pa) >> 12) << 10)

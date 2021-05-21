@@ -338,6 +338,7 @@ fork(void)
     }
     memmove(np->ram_pages, p->ram_pages, sizeof(p->ram_pages));
     memmove(np->disk_pages, p->disk_pages, sizeof(p->disk_pages));
+    np->scfifo_index = p->scfifo_index; // ADDED Q2;
   }
 
   release(&np->lock);
@@ -447,7 +448,7 @@ wait(uint64 addr)
             release(&wait_lock);
             return -1;
           }
-          freeproc(np);  // ADDED: Q1
+          freeproc(np);
           if (p->pid != INIT_PID && p->pid != SHELL_PID) {
             free_metadata(p);
           }
@@ -499,6 +500,11 @@ scheduler(void)
         c->proc = p;
         swtch(&c->context, &p->context);
 
+        // ADDED Q2
+        #if SELECTION == NFUA || SELECTION == LAPA
+          maintain_age(p);
+        #endif
+        
         // Process is done running for now.
         // It should have changed its p->state before coming back.
         c->proc = 0;
@@ -708,12 +714,14 @@ int init_metadata(struct proc *p)
 
   for (int i = 0; i < MAX_PSYC_PAGES; i++) {
     p->ram_pages[i].va = 0;
-    p->ram_pages[i].age = 0;
+    p->ram_pages[i].age = 0; // ADDED Q2
     p->ram_pages[i].used = 0;
     
     p->disk_pages[i].va = 0;
     p->disk_pages[i].offset = i * PGSIZE;
     p->disk_pages[i].used = 0;
+
+    p->scfifo_index = 0; // ADDED Q2
   }
   return 0;
 }
@@ -727,13 +735,25 @@ void free_metadata(struct proc *p)
 
     for (int i = 0; i < MAX_PSYC_PAGES; i++) {
       p->ram_pages[i].va = 0;
-      p->ram_pages[i].age = 0;
+      p->ram_pages[i].age = 0; // ADDED Q2
       p->ram_pages[i].used = 0;
 
       p->disk_pages[i].va = 0;
       p->disk_pages[i].offset = 0;
       p->disk_pages[i].used = 0;
     }
+}
+// ADDED Q1
+int get_free_page_in_disk()
+{
+  struct proc *p = myproc();
+  int index = 0;
+  for(struct disk_page *disk_pg = p->disk_pages; disk_pg < &p->disk_pages[MAX_PSYC_PAGES]; disk_pg++, index++){
+    if (!disk_pg->used) {
+      return index;
+    }
+  }
+  return -1;
 }
 
 void swapout(int ram_pg_index)
@@ -757,7 +777,7 @@ void swapout(int ram_pg_index)
   //   panic("swapout: invalid page");
 
   int unused_disk_pg_index;
-  if (unused_disk_pg_index = find_free_page_in_disk(p) < 0) {
+  if ((unused_disk_pg_index = get_free_page_in_disk()) < 0) {
     panic("swapout: disk overflow");
   }
   struct disk_page *disk_pg_to_store = &p->disk_pages[unused_disk_pg_index];
@@ -772,7 +792,6 @@ void swapout(int ram_pg_index)
   kfree((void *)pa);
 
   ram_pg_to_swap->va = 0;
-  ram_pg_to_swap->age = 0; // TODO?
   ram_pg_to_swap->used = 0;
 
   *pte = *pte & ~PTE_V;
@@ -823,7 +842,13 @@ void swapin(int disk_index, int ram_index)
 
   ram_pg->used = 1;
   ram_pg->va = disk_pg->va;
-  ram_pg->age = 0;
+  // ADDED Q2
+  #if SELECTION == LAPA
+    ram_pg->age = 0xFFFFFFFF;
+  #endif
+  #if SELECTION != LAPA 
+    ram_pg->age = 0;
+  #endif
 
   disk_pg->va = 0;
   disk_pg->used = 0;
@@ -873,7 +898,7 @@ void handle_page_fault(uint64 va)
     
     int unused_ram_pg_index;
     if ((unused_ram_pg_index = get_unused_ram_index(p)) < 0) {    
-        int ram_pg_index_to_swap = 0; // TODO PAGE REPLACEMENT ALGORITHMS
+        int ram_pg_index_to_swap =  index_page_to_swap();
         swapout(ram_pg_index_to_swap); 
         unused_ram_pg_index = ram_pg_index_to_swap;
     }
@@ -894,14 +919,20 @@ void insert_page_to_ram(uint64 va)
     int unused_ram_pg_index;
     if ((unused_ram_pg_index = get_unused_ram_index(p)) < 0)
     {
-        int ram_pg_index_to_swap = 0; // TODO PAGE REPLACEMENT ALGORITHMS
+        int ram_pg_index_to_swap = index_page_to_swap();
         swapout(ram_pg_index_to_swap);
         unused_ram_pg_index = ram_pg_index_to_swap;
     }
     ram_pg = &p->ram_pages[unused_ram_pg_index];
     ram_pg->va = va;
     ram_pg->used = 1;
-    ram_pg->age = 0;
+    // ADDED Q2
+    #if SELECTION == LAPA
+      ram_pg->age = 0xFFFFFFFF;
+    #endif
+    #if SELECTION != LAPA 
+      ram_pg->age = 0;
+    #endif
 }
 
 // TODO assume remove page only located in ram?? or we should also iterate over the disk pages?
@@ -915,9 +946,115 @@ void remove_page_from_ram(uint64 va)
     if (p->ram_pages[i].va == va && p->ram_pages[i].used) {
       p->ram_pages[i].va = 0;
       p->ram_pages[i].used = 0;
-      p->ram_pages[i].age = 0;
+      p->ram_pages[i].age = 0; // ADDED Q2
       return;
     }
   }
   panic("remove_page_from_ram failed");
+}
+
+int nfua()
+{
+  struct proc *p = myproc();
+  int i = 0;
+  int min_index = 0;
+  uint min_age = 0xFFFFFFFF;
+  for(struct ram_page *ram_pg = p->ram_pages; ram_pg < &p->ram_pages[MAX_PSYC_PAGES]; ram_pg++, i++){
+    if(ram_pg->age < min_age){
+      min_index = i;
+      min_age = ram_pg->age;
+    }
+  }
+  return min_index;
+}
+
+int count_ones(uint num) 
+{
+  int count = 0;
+  while(num > 0){
+    int cur_lsb = num % 2;
+    count += cur_lsb;
+    num = num / 2; 
+  }
+  return count;
+}
+
+int lapa()
+{
+  struct proc *p = myproc();
+  int i = 0;
+  int min_index = 0;
+  uint min_age = 0xFFFFFFFF;
+  for(struct ram_page *ram_pg = p->ram_pages; ram_pg < &p->ram_pages[MAX_PSYC_PAGES]; ram_pg++, i++){
+    int ram_pg_age_ones = count_ones(ram_pg->age);
+    int min_age_ones = count_ones(min_age);
+    if (ram_pg_age_ones < min_age_ones) {
+      min_index = i;
+      min_age = ram_pg->age;
+    }
+    if (ram_pg_age_ones == min_age_ones && ram_pg->age < min_age) {
+      min_index = i;
+      min_age = ram_pg->age;
+    }
+  }
+  return min_index;
+}
+
+int scfifo()
+{
+  struct proc *p = myproc();
+  struct ram_page *cur_ram_pg;
+  int index = p->scfifo_index;
+  while(1){
+    cur_ram_pg = &p->ram_pages[index];
+
+    pte_t *pte;
+    if ((pte = walk(p->pagetable, cur_ram_pg->va, 0)) == 0) {
+      panic("scfifo: walk failed");
+    }
+    
+    if(*pte & PTE_A){
+      *pte = *pte & ~PTE_A;
+      index = (index + 1) % MAX_PSYC_PAGES;
+    }
+    else{
+      p->scfifo_index = (index + 1) % MAX_PSYC_PAGES;
+      return index;
+    }
+  }
+}
+
+int index_page_to_swap()
+{
+  #if SELECTION == NFUA
+    return nfua();
+  #endif
+
+  #if SELECTION == LAPA
+    return lapa();
+  #endif
+
+  #if SELECTION == SCFIFO
+    return scfifo();
+  #endif
+
+  #if SELECTION == NONE
+    return -1;
+  #endif
+
+  return -1;
+}
+
+void maintain_age(struct proc *p){
+  for(struct ram_page *ram_pg = p->ram_pages; ram_pg < &p->ram_pages[MAX_PSYC_PAGES]; ram_pg++){
+    pte_t *pte;
+    if ((pte = walk(p->pagetable, ram_pg->va, 0)) == 0) {
+      panic("maintain_age: walk failed");
+    }
+    ram_pg->age = (ram_pg->age >> 1);
+    if (*pte & PTE_A){
+      ram_pg->age = ram_pg->age | (1 << 31);
+      *pte = *pte & ~PTE_A;
+    }
+  }
 }
