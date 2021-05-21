@@ -243,10 +243,7 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
       return 0;
     }
     // ADDED Q1
-  //  printf("insert_page_to_ram begin\n"); // REMOVE
     insert_page_to_ram(p, a);
-   // printf("insert_page_to_ram end\n"); // REMOVE
-
   }
   return newsz;
 }
