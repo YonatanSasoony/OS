@@ -228,7 +228,6 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
 
   if(newsz < oldsz)
     return oldsz;
-  struct proc *p = myproc();
   oldsz = PGROUNDUP(oldsz);
   for(a = oldsz; a < newsz; a += PGSIZE){
     mem = kalloc();
@@ -243,7 +242,7 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
       return 0;
     }
     // ADDED Q1
-    insert_page_to_ram(p, a);
+    insert_page_to_ram(a);
   }
   return newsz;
 }
@@ -257,14 +256,13 @@ uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
 {
   if(newsz >= oldsz)
     return oldsz;
-  struct proc *p = myproc();
   if(PGROUNDUP(newsz) < PGROUNDUP(oldsz)){
     int npages = (PGROUNDUP(oldsz) - PGROUNDUP(newsz)) / PGSIZE;
     uvmunmap(pagetable, PGROUNDUP(newsz), npages, 1);
 
     // ADDED Q1
     for (int a = PGROUNDDOWN(oldsz); a > PGROUNDDOWN(newsz); a -= PGSIZE) {
-      remove_page_from_ram(p, a);
+      remove_page_from_ram(a);
     }
   }
 
@@ -313,7 +311,7 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
+  char *mem =0;
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
@@ -322,9 +320,9 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
       panic("uvmcopy: page not present");
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
-    if (flags & PTE_PG){// ADDED Q1 - do not copy pages from disk (we are doing that in fork() system call)
-      mem = 0;
-    } else {
+
+    // ADDED Q1 - do not copy pages from disk (we are doing that in fork() system call)
+    if ((flags & PTE_PG) == 0) {
       if((mem = kalloc()) == 0)
         goto err;
       memmove(mem, (char*)pa, PGSIZE);

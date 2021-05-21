@@ -113,14 +113,14 @@ void            procdump(void);
 // ADDED Q1
 int             init_metadata(struct proc *);
 void            free_metadata(struct proc *);
-void            swapin(struct proc *, int, int);
-void            swapout(struct proc *, int);
+void            swapin(int, int);
+void            swapout(int);
 void            handle_page_fault(uint64);
-void            insert_page_to_ram(struct proc *, uint64); 
-void            remove_page_from_ram(struct proc *, uint64); 
+void            insert_page_to_ram(uint64); 
+void            remove_page_from_ram(uint64); 
 int             relevant_metadata_proc(struct proc *);
 // ADDED Q2
-int             index_page_to_swap(struct proc *);
+int             index_page_to_swap(void);
 void            maintain_age(struct proc *);
 
 // swtch.S

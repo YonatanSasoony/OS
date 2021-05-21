@@ -457,9 +457,9 @@ wait(uint64 addr)
             return -1;
           }
           freeproc(np);
-        //  if (relevant_metadata_proc(p)) { // TODO REMOVE?
-        //    free_metadata(p);
-        //  }
+         if (relevant_metadata_proc(p)) {
+           free_metadata(np);
+         }
 
           release(&np->lock);
           release(&wait_lock);
@@ -765,8 +765,9 @@ int get_free_page_in_disk()
   return -1;
 }
 
-void swapout(struct proc *p, int ram_pg_index)
+void swapout(int ram_pg_index)
 {
+  struct proc *p = myproc();
   if (ram_pg_index < 0 || ram_pg_index > MAX_PSYC_PAGES) {
     panic("swapout: ram page index out of bounds");
   }
@@ -807,7 +808,7 @@ void swapout(struct proc *p, int ram_pg_index)
   sfence_vma();   // clear TLB
 }
 
-void swapin(struct proc *p, int disk_index, int ram_index)
+void swapin(int disk_index, int ram_index)
 {
   if (disk_index < 0 || disk_index > MAX_PSYC_PAGES) {
     panic("swapin: disk index out of bounds");
@@ -816,6 +817,7 @@ void swapin(struct proc *p, int disk_index, int ram_index)
   if (ram_index < 0 || ram_index > MAX_PSYC_PAGES) {
     panic("swapin: ram index out of bounds");
   }
+  struct proc *p = myproc();
   struct disk_page *disk_pg = &p->disk_pages[disk_index]; 
 
   if (!disk_pg->used) {
@@ -901,19 +903,20 @@ void handle_page_fault(uint64 va)
   
   int unused_ram_pg_index;
   if ((unused_ram_pg_index = get_unused_ram_index(p)) < 0) {    
-      int ram_pg_index_to_swap =  index_page_to_swap(p);
-      swapout(p, ram_pg_index_to_swap); 
+      int ram_pg_index_to_swap =  index_page_to_swap();
+      swapout(ram_pg_index_to_swap); 
       unused_ram_pg_index = ram_pg_index_to_swap;
   }
   int target_idx;
   if( (target_idx = get_disk_page_index(p, PGROUNDDOWN(va))) < 0) {
     panic("handle_page_fault: get_disk_page_index failed");
   }
-  swapin(p, target_idx, unused_ram_pg_index);
+  swapin(target_idx, unused_ram_pg_index);
 }
 
-void insert_page_to_ram(struct proc *p, uint64 va)
+void insert_page_to_ram(uint64 va)
 {
+  struct proc *p = myproc();
   if (!relevant_metadata_proc(p)) {
     return;
   }
@@ -921,10 +924,8 @@ void insert_page_to_ram(struct proc *p, uint64 va)
   int unused_ram_pg_index;
   if ((unused_ram_pg_index = get_unused_ram_index(p)) < 0)
   {
-    int ram_pg_index_to_swap = index_page_to_swap(p);
-    printf("ram_pg_index_to_swap: %d\n",ram_pg_index_to_swap);//REMOVE
-    printf("pid: %d\n",p->pid);//REMOVE
-    swapout(p, ram_pg_index_to_swap);
+    int ram_pg_index_to_swap = index_page_to_swap();
+    swapout(ram_pg_index_to_swap);
     unused_ram_pg_index = ram_pg_index_to_swap;
   }
   ram_pg = &p->ram_pages[unused_ram_pg_index];
@@ -940,8 +941,9 @@ void insert_page_to_ram(struct proc *p, uint64 va)
 }
 
 // TODO assume remove page only located in ram?? or we should also iterate over the disk pages?
-void remove_page_from_ram(struct proc *p, uint64 va)
+void remove_page_from_ram( uint64 va)
 {
+  struct proc *p = myproc();
   if (!relevant_metadata_proc(p)) {
     return;
   }
@@ -956,11 +958,12 @@ void remove_page_from_ram(struct proc *p, uint64 va)
   panic("remove_page_from_ram failed");
 }
 
-int nfua(struct proc *p)
+int nfua()
 {
   int i = 0;
   int min_index = 0;
   uint min_age = 0xFFFFFFFF;
+  struct proc *p = myproc();
   for(struct ram_page *ram_pg = p->ram_pages; ram_pg < &p->ram_pages[MAX_PSYC_PAGES]; ram_pg++, i++){
     if(ram_pg->age < min_age){
       min_index = i;
@@ -981,11 +984,12 @@ int count_ones(uint num)
   return count;
 }
 
-int lapa(struct proc *p)
+int lapa()
 {
   int i = 0;
   int min_index = 0;
   uint min_age = 0xFFFFFFFF;
+  struct proc *p = myproc();
   for(struct ram_page *ram_pg = p->ram_pages; ram_pg < &p->ram_pages[MAX_PSYC_PAGES]; ram_pg++, i++){
     int ram_pg_age_ones = count_ones(ram_pg->age);
     int min_age_ones = count_ones(min_age);
@@ -1001,9 +1005,10 @@ int lapa(struct proc *p)
   return min_index;
 }
 
-int scfifo(struct proc *p)
+int scfifo()
 {
   struct ram_page *cur_ram_pg;
+  struct proc *p = myproc();
   int index = p->scfifo_index;
   while(1){
     cur_ram_pg = &p->ram_pages[index];
@@ -1024,18 +1029,18 @@ int scfifo(struct proc *p)
   }
 }
 
-int index_page_to_swap(struct proc *p) //TODO: check macros
+int index_page_to_swap()
 {
   #ifdef NFUA
-    return nfua(p);
+    return nfua();
   #endif
 
   #ifdef LAPA
-    return lapa(p);
+    return lapa();
   #endif
 
   #ifdef SCFIFO
-    return scfifo(p);
+    return scfifo();
   #endif
 
   #ifdef NONE
