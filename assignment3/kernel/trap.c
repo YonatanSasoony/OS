@@ -49,7 +49,6 @@ usertrap(void)
   
   // save user program counter.
   p->trapframe->epc = r_sepc();
-  
   if(r_scause() == 8){
     // system call
 
@@ -67,16 +66,17 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
-  } else if ((p->pid != INIT_PID && p->pid != SHELL_PID) && 
-             (r_scause() == INSTRUCTION_PAGE_FAULT || r_scause() == LOAD_PAGE_FAULT || r_scause() == STORE_PAGE_FAULT))  {
-    uint64 va = r_stval();
-    handle_page_fault(va);    
+  } else if (relevant_metadata_proc(p) && 
+              (r_scause() == INSTRUCTION_PAGE_FAULT || r_scause() == LOAD_PAGE_FAULT || r_scause() == STORE_PAGE_FAULT))  {
+      printf("USERTRAP FAULT");
+      uint64 va = r_stval();
+      handle_page_fault(va);    
   } else {
+    printf("$$$$$$$$HERE#######\n");//REMOVE
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     p->killed = 1;
   }
-
   if(p->killed)
     exit(-1);
 

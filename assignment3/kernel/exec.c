@@ -40,9 +40,11 @@ exec(char *path, char **argv)
   // if(isSwapProc(p) && init_metadata(p) < 0){
   //   goto bad;
   // }
-  if(p->pid != INIT_PID && p->pid != SHELL_PID && init_metadata(p) < 0){
+  if(relevant_metadata_proc(p)) {
+    if (init_metadata(p) < 0) {
     goto bad;
-  }
+    }
+  } 
 
   // Check ELF header
   if(readi(ip, 0, (uint64)&elf, 0, sizeof(elf)) != sizeof(elf))

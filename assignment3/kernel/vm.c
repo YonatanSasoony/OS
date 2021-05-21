@@ -147,6 +147,7 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
       return -1;
     if(*pte & PTE_V)
       panic("remap");
+
     *pte = PA2PTE(pa) | perm;
     // ADDED Q1
     // PTE_V == 1 only when the page is located in the ram
@@ -180,7 +181,7 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
       panic("uvmunmap: not mapped");
     if(PTE_FLAGS(*pte) == PTE_V)
       panic("uvmunmap: not a leaf");
-    if(do_free && (*pte & PTE_PG) == 0){ // ADDED Q1
+    if(do_free && ((*pte & PTE_PG) == 0)){ // ADDED Q1
       uint64 pa = PTE2PA(*pte);
       kfree((void*)pa);
     }
@@ -227,7 +228,7 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
 
   if(newsz < oldsz)
     return oldsz;
-
+  struct proc *p = myproc();
   oldsz = PGROUNDUP(oldsz);
   for(a = oldsz; a < newsz; a += PGSIZE){
     mem = kalloc();
@@ -242,7 +243,10 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
       return 0;
     }
     // ADDED Q1
-    insert_page_to_ram(a);
+  //  printf("insert_page_to_ram begin\n"); // REMOVE
+    insert_page_to_ram(p, a);
+   // printf("insert_page_to_ram end\n"); // REMOVE
+
   }
   return newsz;
 }
@@ -256,14 +260,14 @@ uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
 {
   if(newsz >= oldsz)
     return oldsz;
-
+  struct proc *p = myproc();
   if(PGROUNDUP(newsz) < PGROUNDUP(oldsz)){
     int npages = (PGROUNDUP(oldsz) - PGROUNDUP(newsz)) / PGSIZE;
     uvmunmap(pagetable, PGROUNDUP(newsz), npages, 1);
 
     // ADDED Q1
     for (int a = PGROUNDDOWN(oldsz); a > PGROUNDDOWN(newsz); a -= PGSIZE) {
-      remove_page_from_ram(a);
+      remove_page_from_ram(p, a);
     }
   }
 
@@ -312,7 +316,7 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem = 0;
+  char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
@@ -321,7 +325,9 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
       panic("uvmcopy: page not present");
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
-    if ((flags & PTE_PG) == 0){ // ADDED Q1 - do not copy pages from disk (we are doing that in fork() system call)
+    if (flags & PTE_PG){// ADDED Q1 - do not copy pages from disk (we are doing that in fork() system call)
+      mem = 0;
+    } else {
       if((mem = kalloc()) == 0)
         goto err;
       memmove(mem, (char*)pa, PGSIZE);

@@ -1,5 +1,6 @@
 K=kernel
 U=user
+SELECTION=SCFIFO # ADDED Q2
 
 OBJS = \
   $K/entry.o \
@@ -50,12 +51,6 @@ endif
 
 QEMU = qemu-system-riscv64
 
-# ADDED: Q2
-ifndef SELECTION
-	SELECTION=SCFIFO
-endif
-
-
 CC = $(TOOLPREFIX)gcc
 AS = $(TOOLPREFIX)gas
 LD = $(TOOLPREFIX)ld
@@ -68,7 +63,7 @@ CFLAGS += -mcmodel=medany
 CFLAGS += -ffreestanding -fno-common -nostdlib -mno-relax
 CFLAGS += -I.
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
-CFLAGS += -D SELECTION=$(SELECTION) # ADDED: Q2
+CFLAGS += -D $(SELECTION) # ADDED: Q2
 
 # Disable PIE when possible (for Ubuntu 16.10 toolchain)
 ifneq ($(shell $(CC) -dumpspecs 2>/dev/null | grep -e '[^f]no-pie'),)
@@ -122,6 +117,7 @@ mkfs/mkfs: mkfs/mkfs.c $K/fs.h $K/param.h
 # http://www.gnu.org/software/make/manual/html_node/Chained-Rules.html
 .PRECIOUS: %.o
 
+#ADDED Q3 test_task3.c
 UPROGS=\
 	$U/_cat\
 	$U/_echo\
@@ -140,6 +136,7 @@ UPROGS=\
 	$U/_wc\
 	$U/_zombie\
 	$U/_lazytests\
+	$U/_test_task3\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)
