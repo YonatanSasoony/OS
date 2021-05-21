@@ -36,10 +36,13 @@ exec(char *path, char **argv)
   ilock(ip);
 
   //ADDED Q1
-  // TODO isSwapProc...
+  // TODO isSwapProc... is it equal to (p->pid != INIT_PID && p->pid != SHELL_PID)?
   // if(isSwapProc(p) && init_metadata(p) < 0){
   //   goto bad;
   // }
+  if(p->pid != INIT_PID && p->pid != SHELL_PID && init_metadata(p) < 0){
+    goto bad;
+  }
 
   // Check ELF header
   if(readi(ip, 0, (uint64)&elf, 0, sizeof(elf)) != sizeof(elf))

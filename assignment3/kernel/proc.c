@@ -322,23 +322,25 @@ fork(void)
 
   // ADDED Q1
   if (np->pid != INIT_PID && np->pid != SHELL_PID) {
+    release(&np->lock);
     if (init_metadata(np) < 0) {
       freeproc(np);
       release(&np->lock);
       return -1;
     }
+    acquire(&np->lock);
   }
 
   if (p->pid != INIT_PID && p->pid != SHELL_PID) {
     if (copy_swapFile(p, np) < 0) {
       freeproc(np);
-      free_metadata(np);
       release(&np->lock);
+      free_metadata(np);
       return -1;
     }
     memmove(np->ram_pages, p->ram_pages, sizeof(p->ram_pages));
     memmove(np->disk_pages, p->disk_pages, sizeof(p->disk_pages));
-    np->scfifo_index = p->scfifo_index; // ADDED Q2;
+    np->scfifo_index = p->scfifo_index; // ADDED Q2
   }
 
   release(&np->lock);
@@ -389,7 +391,7 @@ exit(int status)
     }
   }
 
-  // ADDED: Q1
+  // ADDED Q1
   if (p->pid != INIT_PID && p->pid != SHELL_PID) {
     free_metadata(p);
   }
@@ -705,7 +707,7 @@ procdump(void)
   }
 }
 
-// ADDED Q1
+// ADDED Q1 - p->lock must bot be held because of createSwapFile!
 int init_metadata(struct proc *p)
 {
   if (!p->swapFile && createSwapFile(p) < 0) {
@@ -726,6 +728,7 @@ int init_metadata(struct proc *p)
   return 0;
 }
 
+// p->lock must not be held because of removeSwapFile!
 void free_metadata(struct proc *p)
 {
     if (removeSwapFile(p) < 0) {
@@ -763,18 +766,19 @@ void swapout(int ram_pg_index)
     panic("swapout: ram page index out of bounds");
   }
   struct ram_page *ram_pg_to_swap = &p->ram_pages[ram_pg_index];
-  // REMOVE
-  // if (!ram_pg->used) {
-  //   panic("swapout: page unused");
-  // }
+
+  if (!ram_pg_to_swap->used) {
+    panic("swapout: page unused");
+  }
+
   pte_t *pte;
   if ((pte = walk(p->pagetable, ram_pg_to_swap->va, 0)) == 0) {
     panic("swapout: walk failed");
   }
 
-  // REMOVE
-  // if (!(*pte & PTE_V))
-  //   panic("swapout: invalid page");
+  if (!(*pte & PTE_V) || (*pte & PTE_PG)) {
+    panic("swapout: page is not in ram");
+  }
 
   int unused_disk_pg_index;
   if ((unused_disk_pg_index = get_free_page_in_disk()) < 0) {
@@ -810,19 +814,18 @@ void swapin(int disk_index, int ram_index)
     panic("swapin: ram index out of bounds");
   }
   struct disk_page *disk_pg = &p->disk_pages[disk_index]; 
-  // REMOVE
-  // if (!disk_pg->used) {
-  //   panic("swapin: page free");
-  // }
+
+  if (!disk_pg->used) {
+    panic("swapin: page unused");
+  }
+
   pte_t *pte;
   if ((pte = walk(p->pagetable, disk_pg->va, 0)) == 0) {
     panic("swapin: unallocated pte");
   }
 
-  // REMOVE
-  // page should be valid when we swap out, if not, panic
-  // if (*pte & PTE_V || !(*pte & PTE_PG))
-  //     panic("swapin: valid page");
+  if ((*pte & PTE_V) || !(*pte & PTE_PG))
+      panic("swapin: page is not in disk");
 
   struct ram_page *ram_pg = &p->ram_pages[ram_index];
   if (ram_pg->used) {
