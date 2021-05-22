@@ -327,12 +327,10 @@ fork(void)
   safestrcpy(np->name, p->name, sizeof(p->name));
 
   pid = np->pid;
-  printf("##1##\n"); // REMOVE
 
   // ADDED Q1
   if (relevant_metadata_proc(np)) {
     release(&np->lock);
-    printf("##11##\n"); // REMOVE
     if (init_metadata(np) < 0) {
       //acquire(&np->lock);
       freeproc(np);
@@ -341,11 +339,8 @@ fork(void)
     }
     acquire(&np->lock);
   }
-  printf("##2##\n"); // REMOVE
 
   if (relevant_metadata_proc(p)) {
-    printf("##21##\n"); // REMOVE
-
     if (copy_swapFile(p, np) < 0) {
       freeproc(np);
       release(&np->lock);
@@ -356,8 +351,6 @@ fork(void)
     memmove(np->disk_pages, p->disk_pages, sizeof(p->disk_pages));
     np->scfifo_index = p->scfifo_index; // ADDED Q2
   }
-  printf("##3##\n"); // REMOVE
-
   release(&np->lock);
 
   acquire(&wait_lock);
@@ -367,7 +360,6 @@ fork(void)
   acquire(&np->lock);
   np->state = RUNNABLE;
   release(&np->lock);
-  printf("##4##\n"); // REMOVE
 
   return pid;
 }
