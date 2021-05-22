@@ -324,6 +324,7 @@ sfence_vma()
 // ADDED Q1
 #define MAX_PSYC_PAGES 16
 #define MAX_TOTAL_PAGES 32
+#define MAX_DISK_PAGES (MAX_TOTAL_PAGES-MAX_PSYC_PAGES)
 
 #define PGSHIFT 12  // bits of offset within a page
 

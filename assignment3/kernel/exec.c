@@ -23,7 +23,7 @@ exec(char *path, char **argv)
   
   // ADDED Q1
   struct ram_page ram_pages_backup[MAX_PSYC_PAGES];
-  struct disk_page disk_pages_backup[MAX_PSYC_PAGES];
+  struct disk_page disk_pages_backup[MAX_DISK_PAGES];
   memmove(ram_pages_backup, p->ram_pages, sizeof(p->ram_pages));
   memmove(disk_pages_backup, p->disk_pages, sizeof(p->disk_pages));
 
