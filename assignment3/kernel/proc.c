@@ -268,14 +268,25 @@ growproc(int n)
 }
 
 // ADDED Q1
+int fill_swapFile(struct proc *p)
+{
+  char *page = kalloc();
+  for (struct disk_page *disk_pg = p->disk_pages; disk_pg < &p->disk_pages[MAX_DISK_PAGES]; disk_pg++) {
+    if (writeToSwapFile(p, page, disk_pg->offset, PGSIZE) < 0) {
+      return -1;
+    }
+  }
+  kfree(page);
+  return 0;
+}
+
+// ADDED Q1
 int copy_swapFile(struct proc *src, struct proc *dst) {
   if(!src || !src->swapFile || !dst || !dst->swapFile) {
     return -1;
   }
 
-  //int total_size = PGSIZE * MAX_DISK_PAGES;
   char *buffer = (char *)kalloc();
-
   for (struct disk_page *disk_pg = src->disk_pages; disk_pg < &src->disk_pages[MAX_DISK_PAGES]; disk_pg++) {
     if(disk_pg->used) {
       if (readFromSwapFile(src, buffer, disk_pg->offset, PGSIZE) < 0) {
@@ -328,22 +339,27 @@ fork(void)
 
   pid = np->pid;
 
+  release(&np->lock);
+
+  acquire(&wait_lock);
+  np->parent = p;
+  release(&wait_lock);
+
   // ADDED Q1
   if (relevant_metadata_proc(np)) {
-    release(&np->lock);
     if (init_metadata(np) < 0) {
-      //acquire(&np->lock);
       freeproc(np);
-      release(&np->lock);
       return -1;
     }
-    acquire(&np->lock);
+    if (fill_swapFile(np) < 0) {
+      freeproc(np);
+      return -1;
+    }
   }
 
   if (relevant_metadata_proc(p)) {
     if (copy_swapFile(p, np) < 0) {
       freeproc(np);
-      release(&np->lock);
       free_metadata(np);
       return -1;
     }
@@ -351,16 +367,10 @@ fork(void)
     memmove(np->disk_pages, p->disk_pages, sizeof(p->disk_pages));
     np->scfifo_index = p->scfifo_index; // ADDED Q2
   }
-  release(&np->lock);
-
-  acquire(&wait_lock);
-  np->parent = p;
-  release(&wait_lock);
 
   acquire(&np->lock);
   np->state = RUNNABLE;
   release(&np->lock);
-
   return pid;
 }
 
@@ -715,28 +725,13 @@ procdump(void)
   }
 }
 
-// ADDED Q1
-int fill_swapFile(struct proc *p)
-{
-  char *page = kalloc();
-  for (struct disk_page *disk_pg = p->disk_pages; disk_pg < &p->disk_pages[MAX_DISK_PAGES]; disk_pg++) {
-    if (writeToSwapFile(p, page, disk_pg->offset, PGSIZE) < 0) {
-      return -1;
-    }
-  }
-  kfree(page);
-  return 0;
-}
-
 // ADDED Q1 - p->lock must not be held because of createSwapFile!
 int init_metadata(struct proc *p)
 {
   if (!p->swapFile && createSwapFile(p) < 0) {
     return -1;
   }
-  if (fill_swapFile(p) < 0) {
-    return -1;
-  }
+
   for (int i = 0; i < MAX_PSYC_PAGES; i++) {
     p->ram_pages[i].va = 0;
     p->ram_pages[i].age = 0; // ADDED Q2
@@ -916,7 +911,7 @@ void handle_page_fault(uint64 va)
     panic("handle_page_fault: invalid pte");
   }
   
-  if(!(*pte & PTE_PG)) { //TODO why?
+  if(!(*pte & PTE_PG)) {
     panic("handle_page_fault: PTE_PG off");
   }
   
@@ -960,7 +955,6 @@ void insert_page_to_ram(uint64 va)
   #endif
 }
 
-// TODO assume remove page only located in ram?? or we should also iterate over the disk pages?
 void remove_page_from_ram(uint64 va)
 {
   struct proc *p = myproc();

@@ -87,12 +87,11 @@ void exec_test(){
 int main()
 {
     printf("hello test_task3\n");
-    // userstarts should pass???
-    //sanity_test();
+    sanity_test();
     //NFUA_LAPA_tests();
     // SCFIFO_test();
     // NONE_test();
     //fork_test();
-    exec_test();
+    //exec_test();
     exit(0);
 }
