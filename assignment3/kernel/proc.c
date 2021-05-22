@@ -1078,5 +1078,8 @@ void maintain_age(struct proc *p){
 }
 
 int relevant_metadata_proc(struct proc *p) {
+  #ifdef NONE
+    return 0;
+  #endif
   return p->pid != INIT_PID && p->pid != SHELL_PID;
 }
