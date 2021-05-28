@@ -925,9 +925,9 @@ void handle_page_fault(uint64 va)
   }
   
   int unused_ram_pg_index;
-  if ((unused_ram_pg_index = get_unused_ram_index(p)) < 0) {    
+  if ((unused_ram_pg_index = get_unused_ram_index(p)) < 0) {   
       int ram_pg_index_to_swap =  index_page_to_swap();
-      swapout(ram_pg_index_to_swap); 
+      swapout(ram_pg_index_to_swap);
       unused_ram_pg_index = ram_pg_index_to_swap;
       printf("handle_page_fault: replace index %d\n", unused_ram_pg_index); // ADDED Q3
   }

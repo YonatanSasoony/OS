@@ -68,6 +68,17 @@ void fork_test(){
         for (int i = 0; i < 17; i++){
             printf("pages[%d * PG_SIZE] = %d\n", i, pages[i * PG_SIZE]);
         }
+        int pid2 = fork();
+        if(pid2 == 0){
+            printf("###CHILDS CHILD###\n");
+            for (int i = 0; i < 17; i++){
+                printf("pages[%d * PG_SIZE] = %d\n", i, pages[i * PG_SIZE]);
+            }
+        }
+        else{
+        int status2;
+        wait(&status2);
+    }
     }
     else{
         int status;
