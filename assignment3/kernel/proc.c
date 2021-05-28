@@ -931,11 +931,11 @@ void handle_page_fault(uint64 va)
       unused_ram_pg_index = ram_pg_index_to_swap;
       printf("handle_page_fault: replace index %d\n", unused_ram_pg_index); // ADDED Q3
   }
-  int target_idx;
-  if( (target_idx = get_disk_page_index(p, PGROUNDDOWN(va))) < 0) {
+  int target_index;
+  if( (target_index = get_disk_page_index(p, PGROUNDDOWN(va))) < 0) {
     panic("handle_page_fault: get_disk_page_index failed");
   }
-  swapin(target_idx, unused_ram_pg_index);
+  swapin(target_index, unused_ram_pg_index);
 }
 
 void insert_page_to_ram(uint64 va)
@@ -946,8 +946,7 @@ void insert_page_to_ram(uint64 va)
   }
   struct ram_page *ram_pg;
   int unused_ram_pg_index;
-  if ((unused_ram_pg_index = get_unused_ram_index(p)) < 0)
-  {
+  if ((unused_ram_pg_index = get_unused_ram_index(p)) < 0) {
     int ram_pg_index_to_swap = index_page_to_swap();
     swapout(ram_pg_index_to_swap);
     unused_ram_pg_index = ram_pg_index_to_swap;
@@ -975,6 +974,14 @@ void remove_page_from_ram(uint64 va)
       p->ram_pages[i].va = 0;
       p->ram_pages[i].used = 0;
       p->ram_pages[i].age = 0; // ADDED Q2
+      return;
+    }
+  }
+
+    for (int i = 0; i < MAX_DISK_PAGES; i++) {
+    if (p->disk_pages[i].va == va && p->disk_pages[i].used) {
+      p->disk_pages[i].va = 0;
+      p->disk_pages[i].used = 0;
       return;
     }
   }

@@ -67,7 +67,7 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
-  #ifndef NONE
+  #ifndef NONE // ADDED Q2 Q3
   } else if (relevant_metadata_proc(p) && 
               (r_scause() == INSTRUCTION_PAGE_FAULT || r_scause() == LOAD_PAGE_FAULT || r_scause() == STORE_PAGE_FAULT))  {
       uint64 va = r_stval();
