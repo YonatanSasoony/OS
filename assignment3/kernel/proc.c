@@ -268,6 +268,14 @@ growproc(int n)
 }
 
 // ADDED Q1
+int relevant_metadata_proc(struct proc *p) {
+  #ifdef NONE
+    return 0;
+  #endif
+  return p->pid != INIT_PID && p->pid != SHELL_PID;
+}
+
+// ADDED Q1
 int fill_swapFile(struct proc *p)
 {
   char *page = kalloc();
@@ -371,6 +379,7 @@ fork(void)
   acquire(&np->lock);
   np->state = RUNNABLE;
   release(&np->lock);
+
   return pid;
 }
 
@@ -972,6 +981,7 @@ void remove_page_from_ram(uint64 va)
   panic("remove_page_from_ram failed");
 }
 
+// ADDED Q2
 int nfua()
 {
   int i = 0;
@@ -1075,11 +1085,4 @@ void maintain_age(struct proc *p){
       *pte = *pte & ~PTE_A;
     }
   }
-}
-
-int relevant_metadata_proc(struct proc *p) {
-  #ifdef NONE
-    return 0;
-  #endif
-  return p->pid != INIT_PID && p->pid != SHELL_PID;
 }

@@ -20,7 +20,7 @@ exec(char *path, char **argv)
   struct proghdr ph;
   pagetable_t pagetable = 0, oldpagetable;
   struct proc *p = myproc();
-  
+
   // ADDED Q1
   struct ram_page ram_pages_backup[MAX_PSYC_PAGES];
   struct disk_page disk_pages_backup[MAX_DISK_PAGES];
